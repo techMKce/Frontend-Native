@@ -3,12 +3,15 @@ import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native
 import { usePathname, Link } from 'expo-router';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { Video as LucideIcon } from 'lucide-react-native';
+
 
 interface TabItem {
   name: string;
   href: string;
-  icon: LucideIcon;
+  icon: React.ComponentType<{
+    size: number;
+    color: string;
+  }>;
   label: string;
 }
 
@@ -27,25 +30,29 @@ const TabBar: React.FC<TabBarProps> = ({ tabs }) => {
   return (
     <View style={styles.container}>
       {tabs.map((tab) => (
-        <Link key={tab.name} href={tab.href} asChild>
+        <Link key={tab.name} href={tab.href as any} asChild>
           <TouchableOpacity 
             style={[
               styles.tab, 
               isActive(tab.href) && styles.activeTab
             ]}
           >
-            <tab.icon 
-              size={24} 
-              color={isActive(tab.href) ? COLORS.primary : COLORS.gray} 
-            />
-            <Text 
-              style={[
-                styles.tabLabel, 
-                isActive(tab.href) && styles.activeTabLabel
-              ]}
-            >
-              {tab.label}
-            </Text>
+            <View style={styles.tabContent}>
+              <View style={styles.iconContainer}>
+                <tab.icon 
+                  size={24} 
+                  color={isActive(tab.href) ? COLORS.primary : COLORS.gray} 
+                />
+              </View>
+              <Text 
+                style={[
+                  styles.tabLabel, 
+                  isActive(tab.href) && styles.activeTabLabel
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </View>
           </TouchableOpacity>
         </Link>
       ))}
@@ -56,11 +63,17 @@ const TabBar: React.FC<TabBarProps> = ({ tabs }) => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
+    justifyContent: 'space-around',
+    alignItems: 'center',
     backgroundColor: COLORS.white,
     paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.xs,
     borderTopWidth: 1,
     borderTopColor: COLORS.lightGray,
+    height: Platform.select({
+      ios: 80,
+      android: 70,
+      default: 70,
+    }),
     ...Platform.select({
       web: {
         position: 'fixed',
@@ -85,17 +98,29 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: SPACING.xs,
+   
+  },
+  tabContent: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+  },
+  iconContainer: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
   },
   activeTab: {
     borderRadius: 8,
-    backgroundColor: `${COLORS.primaryLight}20`,
+    backgroundColor: COLORS.primaryLight,
   },
   tabLabel: {
     fontFamily: FONT.medium,
-    fontSize: SIZES.xs,
+    fontSize: SIZES.sm,
     color: COLORS.gray,
-    marginTop: 4,
+    includeFontPadding: false,
+    textAlign: 'center',
   },
   activeTabLabel: {
     color: COLORS.primary,
