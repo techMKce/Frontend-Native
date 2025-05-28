@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 // import React, { useState } from 'react';
 // import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 // import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
@@ -317,10 +318,13 @@
 //   },
 // });
 
+=======
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
+<<<<<<< HEAD
 import * as DocumentPicker from 'expo-document-picker';
 import { Calendar, Upload, X } from 'lucide-react-native';
 import { router } from 'expo-router';
@@ -349,19 +353,63 @@ export default function SubmitAssignmentScreen() {
   const handleSubmit = () => {
     if (!selectedFile) return;
     // → call your API/upload here
+=======
+import { useLocalSearchParams, router } from 'expo-router';
+import { Calendar, Upload, X, Download } from 'lucide-react-native';
+
+// Mock assignment data
+const mockAssignment = {
+  id: '1',
+  name: 'Database Design Project',
+  dueDate: '2024-04-15',
+  description: 'Design and implement a database schema for a university management system. Include entity-relationship diagrams and SQL scripts for table creation and sample data insertion.',
+  course: 'Advanced Database Systems',
+  status: 'submitted',
+  submission: {
+    fileName: 'database_design_v1.pdf',
+    submittedAt: '2024-04-10T15:30:00Z',
+  },
+  feedback: {
+    grade: 'A',
+    comment: 'Excellent work! Your database design is well-structured and properly normalized. The documentation is clear and comprehensive.',
+    gradedAt: '2024-04-12T10:15:00Z',
+  },
+};
+
+export default function SubmitAssignmentScreen() {
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const [isSubmitted, setIsSubmitted] = useState(mockAssignment.status === 'submitted');
+
+  const handleUpload = () => {
+    // Implement file upload logic
+    console.log('Upload file');
+  };
+
+  const handleSubmit = () => {
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
     setIsSubmitted(true);
   };
 
   const handleUnsubmit = () => {
+<<<<<<< HEAD
     setSelectedFile(null);
     setIsSubmitted(false);
     setTimeout(() => {
       router.push('/(student)/assignments'); // Adjust this path as needed
     }, 1000);
+=======
+    setIsSubmitted(false);
+  };
+
+  const handleDownload = () => {
+    // Implement file download logic
+    console.log('Download file');
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   };
 
   return (
     <View style={styles.container}>
+<<<<<<< HEAD
       <Header title="Submit Assignment" />
 
       <ScrollView style={styles.content}>
@@ -370,12 +418,22 @@ export default function SubmitAssignmentScreen() {
           <Text style={styles.assignmentName}>{mockAssignment.name}</Text>
           <Text style={styles.courseName}>{mockAssignment.course}</Text>
 
+=======
+      <Header title="Assignment Details" />
+      
+      <ScrollView style={styles.content}>
+        <View style={styles.detailsCard}>
+          <Text style={styles.assignmentName}>{mockAssignment.name}</Text>
+          <Text style={styles.courseName}>{mockAssignment.course}</Text>
+          
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
           <View style={styles.dueDateContainer}>
             <Calendar size={16} color={COLORS.gray} />
             <Text style={styles.dueDate}>
               Due: {new Date(mockAssignment.dueDate).toLocaleDateString()}
             </Text>
           </View>
+<<<<<<< HEAD
 
           <Text style={styles.description}>{mockAssignment.description}</Text>
         </View>
@@ -396,11 +454,54 @@ export default function SubmitAssignmentScreen() {
                 <X size={20} color={COLORS.error} />
               </TouchableOpacity>
             </View>
+=======
+          
+          <Text style={styles.description}>{mockAssignment.description}</Text>
+        </View>
+
+        <View style={styles.submissionCard}>
+          <Text style={styles.sectionTitle}>Submit Your Work</Text>
+          
+          {isSubmitted ? (
+            <View style={styles.submittedFile}>
+              <View style={styles.fileInfo}>
+                <Text style={styles.fileName}>{mockAssignment.submission.fileName}</Text>
+                <Text style={styles.submissionDate}>
+                  Submitted: {new Date(mockAssignment.submission.submittedAt).toLocaleString()}
+                </Text>
+              </View>
+              
+              <View style={styles.fileActions}>
+                <TouchableOpacity
+                  style={styles.iconButton}
+                  onPress={handleDownload}
+                >
+                  <Download size={20} color={COLORS.primary} />
+                </TouchableOpacity>
+                
+                <TouchableOpacity
+                  style={[styles.iconButton, styles.deleteButton]}
+                  onPress={handleUnsubmit}
+                >
+                  <X size={20} color={COLORS.error} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.uploadButton}
+              onPress={handleUpload}
+            >
+              <Upload size={24} color={COLORS.primary} />
+              <Text style={styles.uploadText}>Upload Assignment</Text>
+            </TouchableOpacity>
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
           )}
 
           <TouchableOpacity
             style={[
               styles.submitButton,
+<<<<<<< HEAD
               (!selectedFile || isSubmitted) && { opacity: 0.6 },
             ]}
             onPress={handleSubmit}
@@ -408,10 +509,43 @@ export default function SubmitAssignmentScreen() {
           >
             <Text style={styles.submitButtonText}>
               {isSubmitted ? 'Submitted' : 'Submit Assignment'}
+=======
+              isSubmitted && styles.unsubmitButton
+            ]}
+            onPress={isSubmitted ? handleUnsubmit : handleSubmit}
+          >
+            <Text style={[
+              styles.submitButtonText,
+              isSubmitted && styles.unsubmitButtonText
+            ]}>
+              {isSubmitted ? 'Unsubmit' : 'Submit Assignment'}
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
             </Text>
           </TouchableOpacity>
         </View>
 
+<<<<<<< HEAD
+=======
+        {mockAssignment.feedback && (
+          <View style={styles.feedbackCard}>
+            <Text style={styles.sectionTitle}>Feedback</Text>
+            
+            <View style={styles.gradeContainer}>
+              <Text style={styles.gradeLabel}>Grade:</Text>
+              <View style={styles.gradeBadge}>
+                <Text style={styles.gradeText}>{mockAssignment.feedback.grade}</Text>
+              </View>
+            </View>
+            
+            <Text style={styles.feedbackComment}>{mockAssignment.feedback.comment}</Text>
+            
+            <Text style={styles.gradedDate}>
+              Graded on: {new Date(mockAssignment.feedback.gradedAt).toLocaleString()}
+            </Text>
+          </View>
+        )}
+
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
         <View style={{ height: 100 }} />
       </ScrollView>
     </View>
@@ -419,9 +553,20 @@ export default function SubmitAssignmentScreen() {
 }
 
 const styles = StyleSheet.create({
+<<<<<<< HEAD
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, padding: SPACING.md },
 
+=======
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  content: {
+    flex: 1,
+    padding: SPACING.md,
+  },
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   detailsCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -458,7 +603,10 @@ const styles = StyleSheet.create({
     color: COLORS.darkGray,
     lineHeight: 24,
   },
+<<<<<<< HEAD
 
+=======
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   submissionCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -476,6 +624,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+<<<<<<< HEAD
+=======
+    backgroundColor: `${COLORS.primary}10`,
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
     borderWidth: 1,
     borderColor: COLORS.primary,
     borderStyle: 'dashed',
@@ -498,14 +650,40 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     marginBottom: SPACING.md,
   },
+<<<<<<< HEAD
+=======
+  fileInfo: {
+    flex: 1,
+  },
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   fileName: {
     fontFamily: FONT.medium,
     fontSize: SIZES.md,
     color: COLORS.darkGray,
+<<<<<<< HEAD
+=======
+    marginBottom: 2,
+  },
+  submissionDate: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    color: COLORS.gray,
+  },
+  fileActions: {
+    flexDirection: 'row',
+    gap: SPACING.sm,
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   },
   iconButton: {
     padding: SPACING.xs,
   },
+<<<<<<< HEAD
+=======
+  deleteButton: {
+    backgroundColor: `${COLORS.error}10`,
+    borderRadius: 4,
+  },
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   submitButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
@@ -517,4 +695,57 @@ const styles = StyleSheet.create({
     fontSize: SIZES.md,
     color: COLORS.white,
   },
+<<<<<<< HEAD
+=======
+  unsubmitButton: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.error,
+  },
+  unsubmitButtonText: {
+    color: COLORS.error,
+  },
+  feedbackCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: SPACING.lg,
+    marginBottom: SPACING.md,
+    ...SHADOWS.small,
+  },
+  gradeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  gradeLabel: {
+    fontFamily: FONT.medium,
+    fontSize: SIZES.md,
+    color: COLORS.darkGray,
+    marginRight: SPACING.sm,
+  },
+  gradeBadge: {
+    backgroundColor: `${COLORS.primary}20`,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: 12,
+  },
+  gradeText: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.md,
+    color: COLORS.primary,
+  },
+  feedbackComment: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.md,
+    color: COLORS.darkGray,
+    lineHeight: 24,
+    marginBottom: SPACING.md,
+  },
+  gradedDate: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    color: COLORS.gray,
+    textAlign: 'right',
+  },
+>>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
 });
