@@ -81,29 +81,20 @@ export default function StudentDashboard() {
         });
 
         // If you have data for multiple semesters from the API, transform it here
-        // For now, we'll create a mock semester data based on the single semester response
-        const semesterData: Record<
-          number,
-          {
-            percentage: number;
-            FN: { conducted: number; present: number };
-            AN: { conducted: number; present: number };
-          }
-        > = {
+        // For now, we'll use the single semester response directly
+        setSemesterAttendanceDetails({
           [apiData.sem]: {
             percentage: apiData.percentage,
             FN: {
-              conducted: apiData.totalsession / 2, // Assuming half are FN sessions
               present: apiData.forenoon,
+              conducted: apiData.totalsession, // Using total session as conducted
             },
             AN: {
-              conducted: apiData.totalsession / 2, // Assuming half are AN sessions
               present: apiData.afternoon,
+              conducted: apiData.totalsession, // Using total session as conducted
             },
           },
-        };
-
-        setSemesterAttendanceDetails(semesterData);
+        });
       } catch (err) {
         setError('Failed to fetch attendance data');
         console.error('Error fetching attendance:', err);

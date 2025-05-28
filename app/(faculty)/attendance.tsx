@@ -78,7 +78,7 @@ const AttendanceScreen = () => {
       const courseIds = [...new Set(response.data.map((item: any) => item.courseId))] as string[];
       const courseDetails = await Promise.all(
         courseIds.map(async (courseId) => {
-          const courseRes = await api.get(`/v1/course-enrollment/by-course/${courseId}`);
+          const courseRes = await api.get(`/course/details/${courseId}`);
           return {
             courseId: courseRes.data.courseId,
             courseName: courseRes.data.courseName,
