@@ -28,9 +28,10 @@ export default function AuthLayout() {
         <Stack.Screen name="index" options={{ title: 'Select Role' }} />
         <Stack.Screen name="login" options={{ title: 'Login' }} />
         <Stack.Screen name="forgot-password" options={{ title: 'Forgot Password' }} />
+        <Stack.Screen name="Changepassword" options={{ title: 'ChangePassword' }} />
       </Stack>
 
-      {/* Mount the Toast component once under this layout: */}
+     
       <Toast
         position="top"
         topOffset={50}

@@ -5,6 +5,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useLocalSearchParams, Link } from 'expo-router';
 import { ChevronLeft, Lock, Mail } from 'lucide-react-native';
 
+
+
 export default function LoginScreen() {
   const { login } = useAuth();
   const { role } = useLocalSearchParams<{ role: string }>();

@@ -21,9 +21,9 @@ export default function ForgotPasswordScreen() {
   const { forgotPassword } = useAuth();
   const params = useLocalSearchParams<{ email: string }>();
 
-  const [email, setEmail]       = useState(params.email || '');
+  const [email, setEmail] = useState(params.email || '');
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError]         = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
 
   // 4. Auto-navigate back after success
@@ -72,18 +72,18 @@ export default function ForgotPasswordScreen() {
     }
   };
 
+
   const handleBackToLogin = () => router.back();
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
-    >
+      style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scrollContainer}
         keyboardShouldPersistTaps="handled"        // 1. ensure taps register
         onTouchStart={Keyboard.dismiss}            // 1. dismiss keyboard on background tap
-      >
+>
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
@@ -142,6 +142,7 @@ export default function ForgotPasswordScreen() {
                 {isLoading ? (
                   <ActivityIndicator color={COLORS.white} size="small" />
                 ) : (
+                  
                   <Text style={styles.resetButtonText}>Reset Password</Text>
                 )}
               </TouchableOpacity>
@@ -266,4 +267,4 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     textAlign: 'center',
   },
-});
+}); 
