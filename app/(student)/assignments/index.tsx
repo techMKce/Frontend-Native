@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 // import React, { useState } from 'react';
 // import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity } from 'react-native';
 // import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
@@ -249,8 +248,6 @@
 //     opacity: 0.7,
 //   },
 // });
-=======
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
@@ -265,15 +262,10 @@ const mockAssignments = [
     name: 'Database Design Project',
     dueDate: '2024-04-15',
     course: 'Advanced Database Systems',
-<<<<<<< HEAD
     status: 'Submit',
     grade: null,
     submittedFile: null,
     feedback: null,
-=======
-    status: 'pending', // pending, submitted, graded
-    grade: null,
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   },
   {
     id: '2',
@@ -282,11 +274,8 @@ const mockAssignments = [
     course: 'Data Structures',
     status: 'submitted',
     grade: null,
-<<<<<<< HEAD
     submittedFile: 'analysis.pdf',
     feedback: null,
-=======
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   },
   {
     id: '3',
@@ -295,11 +284,8 @@ const mockAssignments = [
     course: 'Web Technologies',
     status: 'graded',
     grade: 'A',
-<<<<<<< HEAD
     submittedFile: 'web_project.pdf',
     feedback: 'Well structured with great use of components.',
-=======
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   },
 ];
 
@@ -328,11 +314,7 @@ export default function StudentAssignmentsScreen() {
   const getStatusText = (status: string) => {
     switch (status) {
       case 'pending':
-<<<<<<< HEAD
         return 'Submit';
-=======
-        return 'Submit Assignment';
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
       case 'submitted':
         return 'Submitted';
       case 'graded':
@@ -342,7 +324,6 @@ export default function StudentAssignmentsScreen() {
     }
   };
 
-<<<<<<< HEAD
   const handleAssignmentAction = (assignment: typeof mockAssignments[0]) => {
     if (assignment.status === 'submitted') {
       router.push({
@@ -357,14 +338,6 @@ export default function StudentAssignmentsScreen() {
     }
   };
   
-=======
-  const handleAssignmentAction = (id: string) => {
-    router.push({
-      pathname: '/assignments/submit',
-      params: { id }
-    });
-  };
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
 
   const renderAssignmentCard = ({ item }: { item: typeof mockAssignments[0] }) => (
     <View style={styles.assignmentCard}>
@@ -393,7 +366,6 @@ export default function StudentAssignmentsScreen() {
         )}
       </View>
 
-<<<<<<< HEAD
       {item.submittedFile && (
         <Text style={styles.metaInfo}>
           <Text style={styles.metaLabel}>Submitted File: </Text>
@@ -408,21 +380,13 @@ export default function StudentAssignmentsScreen() {
         </Text>
       )}
 
-=======
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
       <TouchableOpacity
         style={[
           styles.actionButton,
           { backgroundColor: getStatusColor(item.status) },
-<<<<<<< HEAD
           item.status === 'graded' && styles.disabledButton,
         ]}
         onPress={() => handleAssignmentAction(item)}
-=======
-          item.status === 'graded' && styles.disabledButton
-        ]}
-        onPress={() => handleAssignmentAction(item.id)}
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
         disabled={item.status === 'graded'}
       >
         <Text style={styles.actionButtonText}>
@@ -435,10 +399,6 @@ export default function StudentAssignmentsScreen() {
   return (
     <View style={styles.container}>
       <Header title="Assignments" />
-<<<<<<< HEAD
-=======
-      
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
       <View style={styles.content}>
         <View style={styles.searchContainer}>
           <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
@@ -532,11 +492,7 @@ const styles = StyleSheet.create({
   dueDateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-<<<<<<< HEAD
     marginBottom: SPACING.sm,
-=======
-    marginBottom: SPACING.md,
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   },
   dueDate: {
     fontFamily: FONT.medium,
@@ -555,7 +511,6 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     marginLeft: SPACING.xs,
   },
-<<<<<<< HEAD
   metaInfo: {
     fontFamily: FONT.regular,
     fontSize: SIZES.sm,
@@ -566,16 +521,11 @@ const styles = StyleSheet.create({
     fontFamily: FONT.semiBold,
     color: COLORS.darkGray,
   },
-=======
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   actionButton: {
     borderRadius: 8,
     paddingVertical: SPACING.sm,
     alignItems: 'center',
-<<<<<<< HEAD
     marginTop: SPACING.sm,
-=======
->>>>>>> a4274f2c51e962dc798fc9b52d8e18a89a2d12db
   },
   actionButtonText: {
     fontFamily: FONT.semiBold,
