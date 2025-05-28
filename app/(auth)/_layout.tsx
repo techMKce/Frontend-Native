@@ -1,7 +1,10 @@
+// app/(auth)/_layout.tsx
+import React from 'react';
 import { Stack } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import { COLORS } from '@/constants/theme';
+import Toast from 'react-native-toast-message';
 
 export default function AuthLayout() {
   const { isLoading } = useAuth();
@@ -15,14 +18,26 @@ export default function AuthLayout() {
   }
 
   return (
-    <Stack screenOptions={{
-      headerShown: false,
-      contentStyle: { backgroundColor: COLORS.white }
-    }}>
-      <Stack.Screen name="index" options={{ title: 'Select Role' }} />
-      <Stack.Screen name="login" options={{ title: 'Login' }} />
-      <Stack.Screen name="forgot-password" options={{ title: 'Forgot Password' }} />
-    </Stack>
+    <>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          contentStyle: { backgroundColor: COLORS.white },
+        }}
+      >
+        <Stack.Screen name="index" options={{ title: 'Select Role' }} />
+        <Stack.Screen name="login" options={{ title: 'Login' }} />
+        <Stack.Screen name="forgot-password" options={{ title: 'Forgot Password' }} />
+      </Stack>
+
+      {/* Mount the Toast component once under this layout: */}
+      <Toast
+        position="top"
+        topOffset={50}
+        visibilityTime={3000}
+        autoHide
+      />
+    </>
   );
 }
 
