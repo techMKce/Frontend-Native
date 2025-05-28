@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { useRouter } from 'expo-router';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Modal } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import { Plus, Search, Users, Clock, FileText } from 'lucide-react-native';
+
 
 const mockCourses = [
   {
@@ -23,7 +25,9 @@ const mockCourses = [
   },
 ];
 
+
 export default function FacultyCoursesScreen() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [newCourse, setNewCourse] = useState({
@@ -71,7 +75,7 @@ export default function FacultyCoursesScreen() {
           data={filteredCourses}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
-            <TouchableOpacity style={styles.courseCard}>
+            <TouchableOpacity style={styles.courseCard} onPress={() => router.push('/(faculty)/coursedetails')}>
               <Text style={styles.courseName}>{item.name}</Text>
               <Text style={styles.courseDescription}>{item.description}</Text>
               
