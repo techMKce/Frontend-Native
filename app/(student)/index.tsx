@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Modal,
   Pressable,
+  ActivityIndicator,
 } from 'react-native';
 import {
   COLORS,
@@ -24,61 +25,7 @@ import {
   ChevronRight,
   ChartBar as BarChart3,
 } from 'lucide-react-native';
-
-/* -------------------------------------------------------------------------- */
-/*                          ─── DASHBOARD MOCK DATA ───                       */
-/* -------------------------------------------------------------------------- */
-
-const mockAttendanceData = {
-  overall: 85,
-};
-
-const mockCourseData = {
-  enrolled: 5,
-  available: 12,
-  recent: [
-    { id: '1', name: 'Advanced Algorithms', lastAccessed: '2 days ago' },
-    { id: '2', name: 'Database Systems', lastAccessed: '1 week ago' },
-  ],
-};
-
-const mockAssignmentData = {
-  total: 8,
-  pending: 3,
-  upcoming: [
-    {
-      id: '1',
-      name: 'Algorithm Analysis',
-      dueDate: '2025-06-20',
-      course: 'Advanced Algorithms',
-    },
-    {
-      id: '2',
-      name: 'Database Design',
-      dueDate: '2025-06-25',
-      course: 'Database Systems',
-    },
-  ],
-};
-
-/* Attendance details semester-wise (FN/AN) */
-const semesterAttendanceDetails: Record<
-  number,
-  {
-    percentage: number;
-    FN: { conducted: number; present: number };
-    AN: { conducted: number; present: number };
-  }
-> = {
-  1: { percentage: 84, FN: { conducted: 20, present: 18 }, AN: { conducted: 18, present: 15 } },
-  2: { percentage: 86, FN: { conducted: 22, present: 20 }, AN: { conducted: 19, present: 17 } },
-  3: { percentage: 88, FN: { conducted: 23, present: 21 }, AN: { conducted: 21, present: 20 } },
-  4: { percentage: 89, FN: { conducted: 25, present: 24 }, AN: { conducted: 22, present: 21 } },
-  5: { percentage: 90, FN: { conducted: 26, present: 25 }, AN: { conducted: 24, present: 23 } },
-  6: { percentage: 92, FN: { conducted: 28, present: 27 }, AN: { conducted: 26, present: 25 } },
-  7: { percentage: 93, FN: { conducted: 30, present: 29 }, AN: { conducted: 27, present: 26 } },
-  8: { percentage: 95, FN: { conducted: 32, present: 30 }, AN: { conducted: 28, present: 27 } },
-};
+import api from '@/service/api';
 
 /* -------------------------------------------------------------------------- */
 /*                             ─── COMPONENT ───                              */
@@ -86,10 +33,125 @@ const semesterAttendanceDetails: Record<
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [attendanceData, setAttendanceData] = useState<{
+    percentage: number;
+    presentsession: number;
+    totalsession: number;
+    afternoon: number;
+    forenoon: number;
+  } | null>(null);
+  const [semesterAttendanceDetails, setSemesterAttendanceDetails] = useState<
+    Record<
+      number,
+      {
+        percentage: number;
+        FN: { conducted: number; present: number };
+        AN: { conducted: number; present: number };
+      }
+    >
+  >({});
 
   /* modal state */
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchAttendanceData = async () => {
+      try {
+        setLoading(true);
+        // Assuming user object has necessary student info
+        const response = await api.get('/attpercent', {
+          params: {
+            stdId: user?.id,
+          },
+        });
+        
+        // Transform the API response to match our expected format
+        const apiData = response.data;
+        
+        // Set overall attendance
+        setAttendanceData({
+          percentage: apiData.percentage,
+          presentsession: apiData.presentsession,
+          totalsession: apiData.totalsession,
+          afternoon: apiData.afternoon,
+          forenoon: apiData.forenoon,
+        });
+
+        // If you have data for multiple semesters from the API, transform it here
+        // For now, we'll create a mock semester data based on the single semester response
+        const semesterData: Record<
+          number,
+          {
+            percentage: number;
+            FN: { conducted: number; present: number };
+            AN: { conducted: number; present: number };
+          }
+        > = {
+          [apiData.sem]: {
+            percentage: apiData.percentage,
+            FN: {
+              conducted: apiData.totalsession / 2, // Assuming half are FN sessions
+              present: apiData.forenoon,
+            },
+            AN: {
+              conducted: apiData.totalsession / 2, // Assuming half are AN sessions
+              present: apiData.afternoon,
+            },
+          },
+        };
+
+        setSemesterAttendanceDetails(semesterData);
+      } catch (err) {
+        setError('Failed to fetch attendance data');
+        console.error('Error fetching attendance:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user?.id) {
+      fetchAttendanceData();
+    }
+  }, [user]);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
+
+  // Mock data for courses
+  const mockCourseData = {
+    enrolled: 5,
+    recent: [
+      { id: 1, name: 'Mathematics', lastAccessed: '2024-06-01' },
+      { id: 2, name: 'Physics', lastAccessed: '2024-05-28' },
+      { id: 3, name: 'Chemistry', lastAccessed: '2024-05-25' },
+    ],
+  };
+
+  // Mock data for assignments
+  const mockAssignmentData = {
+    pending: 3,
+    upcoming: [
+      { id: 1, name: 'Algebra Homework', course: 'Mathematics', dueDate: '2024-06-10' },
+      { id: 2, name: 'Lab Report', course: 'Physics', dueDate: '2024-06-12' },
+      { id: 3, name: 'Organic Chemistry Essay', course: 'Chemistry', dueDate: '2024-06-15' },
+    ],
+  };
 
   return (
     <View style={styles.container}>
@@ -108,7 +170,9 @@ export default function StudentDashboard() {
               <BarChart3 size={24} color={COLORS.primary} />
             </View>
             <View>
-              <Text style={styles.statValue}>{mockAttendanceData.overall}%</Text>
+              <Text style={styles.statValue}>
+                {attendanceData?.percentage?.toFixed(1) || 0}%
+              </Text>
               <Text style={styles.statLabel}>Attendance</Text>
               <Text style={styles.statLabel}>
                 Click to view details
@@ -210,83 +274,68 @@ export default function StudentDashboard() {
       </ScrollView>
 
       {/* ────────────────────────── Attendance Modal ─────────────────────────── */}
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Select Semester</Text>
+        <Modal visible={modalVisible} transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.modalTitle}>Select Semester</Text>
 
-            {/* Semester buttons */}
-            <View style={styles.semesterGrid}>
-              {Array.from({ length: 8 }).map((_, idx) => {
-                const sem = idx + 1;
-                const selected = selectedSemester === sem;
-                return (
-                  <TouchableOpacity
-                    key={sem}
-                    style={[
-                      styles.semesterButton,
-                      selected && styles.semesterButtonSelected,
-                    ]}
-                    onPress={() => setSelectedSemester(sem)}
-                  >
-                    <Text
+              {/* Semester buttons */}
+              <View style={styles.semesterGrid}>
+                {Object.keys(semesterAttendanceDetails).map((sem) => {
+                  const semester = parseInt(sem);
+                  const selected = selectedSemester === semester;
+                  return (
+                    <TouchableOpacity
+                      key={semester}
                       style={[
-                        styles.semesterText,
-                        selected && { color: COLORS.white },
+                        styles.semesterButton,
+                        selected && styles.semesterButtonSelected,
                       ]}
+                      onPress={() => setSelectedSemester(semester)}
                     >
-                      Semester {sem}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-
-            {/* Attendance details */}
-            {selectedSemester && (
-              <View style={styles.attendanceDetail}>
-                <Text style={styles.attendanceDetailText}>
-                  Attendance: {
-                    semesterAttendanceDetails[selectedSemester].percentage
-                  }
-                  %
-                </Text>
-                <Text style={styles.attendanceDetailText}>
-                  FN — Conducted:{' '}
-                  {
-                    semesterAttendanceDetails[selectedSemester].FN.conducted
-                  }{' '}
-                  | Present:{' '}
-                  {
-                    semesterAttendanceDetails[selectedSemester].FN.present
-                  }
-                </Text>
-                <Text style={styles.attendanceDetailText}>
-                  AN — Conducted:{' '}
-                  {
-                    semesterAttendanceDetails[selectedSemester].AN.conducted
-                  }{' '}
-                  | Present:{' '}
-                  {
-                    semesterAttendanceDetails[selectedSemester].AN.present
-                  }
-                </Text>
+                      <Text
+                        style={[
+                          styles.semesterText,
+                          selected && { color: COLORS.white },
+                        ]}
+                      >
+                        Semester {semester}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
-            )}
 
-            {/* Close */}
-            <Pressable
-              style={styles.closeButton}
-              onPress={() => {
-                setModalVisible(false);
-                setSelectedSemester(null);
-              }}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
+              {/* Attendance details */}
+              {selectedSemester && (
+                <View style={styles.attendanceDetail}>
+                  <Text style={styles.attendanceDetailText}>
+                    Attendance: {semesterAttendanceDetails[selectedSemester].percentage}%
+                  </Text>
+                  <Text style={styles.attendanceDetailText}>
+                    FN — Conducted: {semesterAttendanceDetails[selectedSemester].FN.conducted} | 
+                    Present: {semesterAttendanceDetails[selectedSemester].FN.present}
+                  </Text>
+                  <Text style={styles.attendanceDetailText}>
+                    AN — Conducted: {semesterAttendanceDetails[selectedSemester].AN.conducted} | 
+                    Present: {semesterAttendanceDetails[selectedSemester].AN.present}
+                  </Text>
+                </View>
+              )}
+
+              {/* Close */}
+              <Pressable
+                style={styles.closeButton}
+                onPress={() => {
+                  setModalVisible(false);
+                  setSelectedSemester(null);
+                }}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </Pressable>
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
     </View>
   );
 }
@@ -506,5 +555,11 @@ const styles = StyleSheet.create({
   closeButtonText: {
     fontFamily: FONT.medium,
     color: COLORS.white,
+  },
+  errorText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.md,
+    color: COLORS.error,
+    textAlign: 'center',
   },
 });
