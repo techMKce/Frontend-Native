@@ -1,57 +1,219 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
+import {
+  COLORS,
+  FONT,
+  SIZES,
+  SPACING,
+  SHADOWS,
+} from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import { useAuth } from '@/context/AuthContext';
-import { Calendar, BookOpen, ClipboardCheck, ChevronRight, ChartBar as BarChart3 } from 'lucide-react-native';
+import {
+  Calendar,
+  BookOpen,
+  ClipboardCheck,
+  ChevronRight,
+  ChartBar as BarChart3,
+} from 'lucide-react-native';
+import api from '@/service/api';
+import { useRouter } from 'expo-router';
 
-// Mock data
-const mockAttendanceData = {
-  overall: 85,
-  subjects: [
-    { name: 'Mathematics', attendance: 90 },
-    { name: 'Physics', attendance: 75 },
-    { name: 'Computer Science', attendance: 95 },
-  ],
+/* -------------------------------------------------------------------------- */
+/*                             ─── COMPONENT ───                              */
+/* -------------------------------------------------------------------------- */
+
+type AttendanceSessionData = {
+  session: string;
+  stdId: string;
+  sem: number;
+  stdName: string;
+  batch: string;
+  deptId: string;
+  deptName: string;
+  presentcount: number;
+  totaldays: number;
+  percentage: number;
 };
 
-const mockCourseData = {
-  enrolled: 5,
-  available: 12,
-  recent: [
-    { id: '1', name: 'Advanced Algorithms', lastAccessed: '2 days ago' },
-    { id: '2', name: 'Database Systems', lastAccessed: '1 week ago' },
-  ],
-};
-
-const mockAssignmentData = {
-  total: 8,
-  pending: 3,
-  upcoming: [
-    { id: '1', name: 'Algorithm Analysis', dueDate: '2023-06-20', course: 'Advanced Algorithms' },
-    { id: '2', name: 'Database Design', dueDate: '2023-06-25', course: 'Database Systems' },
-  ],
+type AttendanceData = {
+  forenoon?: AttendanceSessionData;
+  afternoon?: AttendanceSessionData;
+  overallPercentage?: number;
 };
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [attendanceData, setAttendanceData] = useState<{
+    percentage: number;
+    presentsession: number;
+    totalsession: number;
+    afternoon: number;
+    forenoon: number;
+  } | null>(null);
+  const [semesterAttendanceDetails, setSemesterAttendanceDetails] = useState<
+    Record<
+      number,
+      {
+        percentage: number;
+        FN: { conducted: number; present: number };
+        AN: { conducted: number; present: number };
+      }
+    >
+  >({});
+  const router = useRouter();
+
+  /* modal state */
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
+
+  useEffect(() => {
+    const fetchAttendanceData = async () => {
+      try {
+        setLoading(true);
+        const response = await api.get('/getstudent', {
+          params: {
+            id:user?.id,
+          },
+        });
+
+        const apiData = response.data as AttendanceSessionData[];
+
+        // Transform the API response
+        const transformedData: AttendanceData = {
+          forenoon: apiData.find(item => item.session === 'forenoon'),
+          afternoon: apiData.find(item => item.session === 'afternoon'),
+          overallPercentage: apiData[0]?.percentage // Using first item's percentage as overall
+        };
+
+        setAttendanceData({
+          percentage: transformedData.overallPercentage || 0,
+          presentsession: (transformedData.forenoon?.presentcount || 0) +
+            (transformedData.afternoon?.presentcount || 0),
+          totalsession: (transformedData.forenoon?.totaldays || 0) +
+            (transformedData.afternoon?.totaldays || 0),
+          afternoon: transformedData.afternoon?.presentcount || 0,
+          forenoon: transformedData.forenoon?.presentcount || 0,
+        });
+
+        // Group by semester
+        const semesterData: Record<number, {
+          percentage: number;
+          FN: { conducted: number; present: number };
+          AN: { conducted: number; present: number };
+        }> = {};
+
+        apiData.forEach(item => {
+          if (!semesterData[item.sem]) {
+            semesterData[item.sem] = {
+              percentage: item.percentage,
+              FN: { present: 0, conducted: 0 },
+              AN: { present: 0, conducted: 0 }
+            };
+          }
+
+          if (item.session === 'forenoon') {
+            semesterData[item.sem].FN = {
+              present: item.presentcount,
+              conducted: item.totaldays
+            };
+          } else if (item.session === 'afternoon') {
+            semesterData[item.sem].AN = {
+              present: item.presentcount,
+              conducted: item.totaldays
+            };
+          }
+        });
+
+        setSemesterAttendanceDetails(semesterData);
+      } catch (err) {
+        setError('Failed to fetch attendance data');
+        console.error('Error fetching attendance:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (user?.id) {
+      fetchAttendanceData();
+    }
+  }, [user]);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>{error}</Text>
+      </View>
+    );
+  }
+
+  // Mock data for courses
+  const mockCourseData = {
+    enrolled: 5,
+    recent: [
+      { id: 1, name: 'Mathematics', lastAccessed: '2024-06-01' },
+      { id: 2, name: 'Physics', lastAccessed: '2024-05-28' },
+      { id: 3, name: 'Chemistry', lastAccessed: '2024-05-25' },
+    ],
+  };
+
+  // Mock data for assignments
+  const mockAssignmentData = {
+    pending: 3,
+    upcoming: [
+      { id: 1, name: 'Algebra Homework', course: 'Mathematics', dueDate: '2024-06-10' },
+      { id: 2, name: 'Lab Report', course: 'Physics', dueDate: '2024-06-12' },
+      { id: 3, name: 'Organic Chemistry Essay', course: 'Chemistry', dueDate: '2024-06-15' },
+    ],
+  };
 
   return (
     <View style={styles.container}>
       <Header title={`Hello, ${user?.name.split(' ')[0] || 'Student'}`} />
-      
+
+      {/* ─────────────────────────── Dashboard Scroll ─────────────────────────── */}
       <ScrollView style={styles.scrollContainer}>
+        {/* ──────────── Stat Cards Row ──────────── */}
         <View style={styles.statsContainer}>
-          <View style={[styles.statCard, styles.attendanceCard]}>
+          {/* Attendance Card (clickable) */}
+          <TouchableOpacity
+            style={[styles.statCard, styles.attendanceCard]}
+            onPress={() => setModalVisible(true)}
+          >
             <View style={styles.statIconContainer}>
               <BarChart3 size={24} color={COLORS.primary} />
             </View>
             <View>
-              <Text style={styles.statValue}>{mockAttendanceData.overall}%</Text>
+              <Text style={styles.statValue}>
+                {attendanceData?.percentage?.toFixed(1) || 0}%
+              </Text>
               <Text style={styles.statLabel}>Attendance</Text>
+              <Text style={styles.statLabel}>
+                Click to view details
+              </Text>
             </View>
-          </View>
-          
+          </TouchableOpacity>
+
+          {/* Enrolled Courses */}
           <View style={[styles.statCard, styles.coursesCard]}>
             <View style={styles.statIconContainer}>
               <BookOpen size={24} color={COLORS.secondary} />
@@ -61,7 +223,8 @@ export default function StudentDashboard() {
               <Text style={styles.statLabel}>Enrolled Courses</Text>
             </View>
           </View>
-          
+
+          {/* Pending Assignments */}
           <View style={[styles.statCard, styles.assignmentsCard]}>
             <View style={styles.statIconContainer}>
               <ClipboardCheck size={24} color={COLORS.accent} />
@@ -72,7 +235,8 @@ export default function StudentDashboard() {
             </View>
           </View>
         </View>
-        
+
+        {/* ──────────── Upcoming Assignments ──────────── */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Upcoming Assignments</Text>
@@ -80,7 +244,7 @@ export default function StudentDashboard() {
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
-          
+
           {mockAssignmentData.upcoming.map((assignment) => (
             <TouchableOpacity key={assignment.id} style={styles.assignmentCard}>
               <View style={styles.assignmentInfo}>
@@ -97,7 +261,8 @@ export default function StudentDashboard() {
             </TouchableOpacity>
           ))}
         </View>
-        
+
+        {/* ──────────── Recent Courses ──────────── */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Courses</Text>
@@ -105,42 +270,115 @@ export default function StudentDashboard() {
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
-          
+
           {mockCourseData.recent.map((course) => (
             <TouchableOpacity key={course.id} style={styles.courseCard}>
               <View style={styles.courseInfo}>
                 <Text style={styles.courseName}>{course.name}</Text>
-                <Text style={styles.courseLastAccessed}>Last accessed: {course.lastAccessed}</Text>
+                <Text style={styles.courseLastAccessed}>
+                  Last accessed: {course.lastAccessed}
+                </Text>
               </View>
               <ChevronRight size={20} color={COLORS.gray} />
             </TouchableOpacity>
           ))}
         </View>
-        
+
+        {/* ──────────── Exam Timetable ──────────── */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Exam Timetable</Text>
             <Calendar size={20} color={COLORS.primary} />
           </View>
-          
+
           <View style={styles.examTimetableCard}>
             <Text style={styles.examTimetableText}>
-              Your next exam is <Text style={styles.examHighlight}>Mathematics</Text> on <Text style={styles.examHighlight}>June 15, 2023</Text>
+              Download your{' '}
+              <Text style={styles.examHighlight}>Exam Timetable</Text>
             </Text>
-            <TouchableOpacity style={styles.viewTimetableButton}>
+            <TouchableOpacity style={styles.viewTimetableButton} onPress={() => router.push('/exam-timetable')}>
               <Text style={styles.viewTimetableText}>View Full Timetable</Text>
             </TouchableOpacity>
           </View>
         </View>
-        
-        {/* Extra padding at the bottom for tab bar */}
+
+        {/* Bottom padding */}
         <View style={{ height: 80 }} />
       </ScrollView>
+
+      {/* ────────────────────────── Attendance Modal ─────────────────────────── */}
+      <Modal visible={modalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Select Semester</Text>
+
+            {/* Semester buttons */}
+            <View style={styles.semesterGrid}>
+              {Object.keys(semesterAttendanceDetails).map((sem) => {
+                const semester = parseInt(sem);
+                const selected = selectedSemester === semester;
+                return (
+                  <TouchableOpacity
+                    key={semester}
+                    style={[
+                      styles.semesterButton,
+                      selected && styles.semesterButtonSelected,
+                    ]}
+                    onPress={() => setSelectedSemester(semester)}
+                  >
+                    <Text
+                      style={[
+                        styles.semesterText,
+                        selected && { color: COLORS.white },
+                      ]}
+                    >
+                      Semester {semester}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {/* Attendance details */}
+            {selectedSemester && (
+              <View style={styles.attendanceDetail}>
+                <Text style={styles.attendanceDetailText}>
+                  Overall Attendance: {semesterAttendanceDetails[selectedSemester].percentage.toFixed(1)}%
+                </Text>
+                <Text style={styles.attendanceDetailText}>
+                  FN — Present: {semesterAttendanceDetails[selectedSemester].FN.present} /
+                  {semesterAttendanceDetails[selectedSemester].FN.conducted} days
+                </Text>
+                <Text style={styles.attendanceDetailText}>
+                  AN — Present: {semesterAttendanceDetails[selectedSemester].AN.present} /
+                  {semesterAttendanceDetails[selectedSemester].AN.conducted} days
+                </Text>
+              </View>
+            )}
+
+            {/* Close */}
+            <Pressable
+              style={styles.closeButton}
+              onPress={() => {
+                setModalVisible(false);
+                setSelectedSemester(null);
+              }}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
+/* -------------------------------------------------------------------------- */
+/*                                  STYLES                                    */
+/* -------------------------------------------------------------------------- */
+
 const styles = StyleSheet.create({
+  /* core layout */
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
@@ -149,6 +387,8 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: SPACING.md,
   },
+
+  /* stats row */
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -162,6 +402,7 @@ const styles = StyleSheet.create({
     minWidth: '30%',
     flex: 1,
     marginHorizontal: 4,
+    marginBottom: SPACING.sm,
     ...SHADOWS.small,
   },
   attendanceCard: {
@@ -176,9 +417,7 @@ const styles = StyleSheet.create({
     borderTopColor: COLORS.accent,
     borderTopWidth: 3,
   },
-  statIconContainer: {
-    marginBottom: SPACING.sm,
-  },
+  statIconContainer: { marginBottom: SPACING.sm },
   statValue: {
     fontFamily: FONT.bold,
     fontSize: SIZES.lg,
@@ -189,9 +428,9 @@ const styles = StyleSheet.create({
     fontSize: SIZES.xs,
     color: COLORS.gray,
   },
-  sectionContainer: {
-    marginBottom: SPACING.lg,
-  },
+
+  /* sections */
+  sectionContainer: { marginBottom: SPACING.lg },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -208,6 +447,8 @@ const styles = StyleSheet.create({
     fontSize: SIZES.sm,
     color: COLORS.primary,
   },
+
+  /* upcoming assignments */
   assignmentCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -217,9 +458,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...SHADOWS.small,
   },
-  assignmentInfo: {
-    flex: 1,
-  },
+  assignmentInfo: { flex: 1 },
   assignmentName: {
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
@@ -231,10 +470,7 @@ const styles = StyleSheet.create({
     fontSize: SIZES.xs,
     color: COLORS.gray,
   },
-  assignmentDueContainer: {
-    marginRight: SPACING.md,
-    alignItems: 'center',
-  },
+  assignmentDueContainer: { marginRight: SPACING.md, alignItems: 'center' },
   assignmentDueLabel: {
     fontFamily: FONT.regular,
     fontSize: SIZES.xs,
@@ -245,6 +481,8 @@ const styles = StyleSheet.create({
     fontSize: SIZES.sm,
     color: COLORS.accent,
   },
+
+  /* recent courses */
   courseCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -254,9 +492,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     ...SHADOWS.small,
   },
-  courseInfo: {
-    flex: 1,
-  },
+  courseInfo: { flex: 1 },
   courseName: {
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
@@ -268,6 +504,8 @@ const styles = StyleSheet.create({
     fontSize: SIZES.xs,
     color: COLORS.gray,
   },
+
+  /* exam timetable */
   examTimetableCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -281,10 +519,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     textAlign: 'center',
   },
-  examHighlight: {
-    fontFamily: FONT.semiBold,
-    color: COLORS.primary,
-  },
+  examHighlight: { fontFamily: FONT.semiBold, color: COLORS.primary },
   viewTimetableButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
@@ -296,5 +531,68 @@ const styles = StyleSheet.create({
     fontFamily: FONT.medium,
     fontSize: SIZES.sm,
     color: COLORS.white,
+  },
+
+  /* modal */
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: COLORS.white,
+    width: '90%',
+    borderRadius: 12,
+    padding: SPACING.lg,
+  },
+  modalTitle: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.md,
+    marginBottom: SPACING.md,
+    textAlign: 'center',
+  },
+  semesterGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    marginBottom: SPACING.md,
+  },
+  semesterButton: {
+    backgroundColor: COLORS.lightGray,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: 8,
+    marginBottom: SPACING.sm,
+    width: '48%',
+    alignItems: 'center',
+  },
+  semesterButtonSelected: { backgroundColor: COLORS.primary },
+  semesterText: {
+    fontFamily: FONT.medium,
+    color: COLORS.darkGray,
+  },
+  attendanceDetail: { marginVertical: SPACING.md },
+  attendanceDetailText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    color: COLORS.darkGray,
+    marginBottom: 4,
+  },
+  closeButton: {
+    backgroundColor: COLORS.accent,
+    padding: SPACING.sm,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  closeButtonText: {
+    fontFamily: FONT.medium,
+    color: COLORS.white,
+  },
+  errorText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.md,
+    color: COLORS.error,
+    textAlign: 'center',
   },
 });
