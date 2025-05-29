@@ -1,63 +1,133 @@
-import React from 'react';
-import { View, Text, StyleSheet, Image, TouchableOpacity, Platform, ScrollView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, ScrollView, KeyboardAvoidingView, ActivityIndicator, Alert } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { GraduationCap as Graduation, School, UserCog } from 'lucide-react-native';
+import { useLocalSearchParams, Link } from 'expo-router';
+import { ChevronLeft, Lock, Mail } from 'lucide-react-native';
 
-export default function RoleSelection() {
-  const { selectRole } = useAuth();
 
-  const roles = [
-    {
-      id: 'student',
-      title: 'Student',
-      description: 'Access your courses, view grades, and manage your academic profile',
-      icon: <Graduation size={48} color={COLORS.primary} />,
-      color: COLORS.primaryLight,
-    },
-    {
-      id: 'faculty',
-      title: 'Faculty',
-      description: 'Manage courses, mark attendance, and view assigned students',
-      icon: <School size={48} color={COLORS.secondary} />,
-      color: COLORS.secondaryLight,
-    },
-    {
-      id: 'admin',
-      title: 'Admin',
-      description: 'Manage faculty, students, courses, and system configuration',
-      icon: <UserCog size={48} color={COLORS.accent} />,
-      color: COLORS.accentLight,
-    },
-  ];
+
+export default function LoginScreen() {
+  const { login } = useAuth();
+  const { role } = useLocalSearchParams<{ role: string }>();
+ 
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Set default email based on role
+  useEffect(() => {
+    if (role === 'student') {
+      setEmail('student@university.edu');
+    } else if (role === 'faculty') {
+      setEmail('faculty@university.edu');
+    } else if (role === 'admin') {
+      setEmail('admin@university.edu');
+    }
+  }, [role]);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setError('Please enter both email and password');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await login(email, password);
+    } catch (error: any) {
+      setError(error.message || 'Failed to login. Please try again.');
+      if (Platform.OS === 'web') {
+        Alert.alert('Login Failed', error.message);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getRoleTitle = () => {
+    switch (role) {
+      case 'student':
+        return 'Student Login';
+      case 'faculty':
+        return 'Faculty Login';
+      case 'admin':
+        return 'Admin Login';
+      default:
+        return 'Login';
+    }
+  };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
-      <View style={styles.header}>
-        <Image
-          source={{ uri: 'https://images.pexels.com/photos/207692/pexels-photo-207692.jpeg' }}
-          style={styles.logo}
-        />
-        <Text style={styles.title}>University Management System</Text>
-        <Text style={styles.subtitle}>Select your role to continue</Text>
-      </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={styles.container}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
+        <View style={styles.header}>
+          <Link href="/(auth)" asChild>
+         
+          </Link>
+          <Text style={styles.title}>{getRoleTitle()}</Text>
+        </View>
 
-      <View style={styles.roleContainer}>
-        {roles.map((role) => (
+        <View style={styles.formContainer}>
+          <View style={styles.inputContainer}>
+            <Mail size={20} color={COLORS.gray} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Email"
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              placeholderTextColor={COLORS.gray}
+            />
+          </View>
+
+          <View style={styles.inputContainer}>
+            <Lock size={20} color={COLORS.gray} style={styles.inputIcon} />
+            <TextInput
+              style={styles.input}
+              placeholder="Password"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              placeholderTextColor={COLORS.gray}
+            />
+          </View>
+
+          {error && <Text style={styles.errorText}>{error}</Text>}
+
           <TouchableOpacity
-            key={role.id}
-            style={[styles.roleCard, { borderColor: role.color }]}
-            onPress={() => selectRole(role.id as any)}
+            style={styles.loginButton}
+            onPress={handleLogin}
+            disabled={isLoading}
           >
-            <View style={[styles.iconContainer, { backgroundColor: role.color }]}>
-              {role.icon}
-            </View>
-            <Text style={styles.roleTitle}>{role.title}</Text>
-            <Text style={styles.roleDescription}>{role.description}</Text>
+            {isLoading ? (
+              <ActivityIndicator color={COLORS.white} size="small" />
+            ) : (
+              <Text style={styles.loginButtonText}>Login</Text>
+            )}
           </TouchableOpacity>
-        ))}
-      </View>
-    </ScrollView>
+
+          <Link href={{ pathname: '/(auth)/forgot-password', params: { email } }} asChild>
+            <TouchableOpacity style={styles.forgotPasswordLink}>
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
+          </Link>
+        </View>
+
+        <View style={styles.footer}>
+          <Text style={styles.helpText}>
+            For any support, please contact admin@university.edu
+          </Text>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -66,66 +136,99 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.white,
   },
-  contentContainer: {
-    paddingVertical: SPACING.xl,
-    paddingHorizontal: SPACING.lg,
+  scrollContainer: {
+    flexGrow: 1,
+    padding: SPACING.lg,
+    justifyContent: 'space-between',
   },
   header: {
-    alignItems: 'center',
     marginBottom: SPACING.xl,
   },
-  logo: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  title: {
-    fontFamily: FONT.bold,
-    fontSize: SIZES.xl,
+  backText: {
+    fontFamily: FONT.medium,
+    fontSize: SIZES.sm,
     color: COLORS.primary,
-    textAlign: 'center',
-    marginBottom: SPACING.xs,
+    marginLeft: SPACING.xs,
   },
-  subtitle: {
+ title: {
+  fontFamily: FONT.bold,
+  marginTop: 30,           // Adjust this to control vertical spacing
+  fontSize: 28,            // Increase font size (customize as needed)
+  color: COLORS.darkGray,
+  textAlign: 'center',
+},
+
+  formContainer: {
+    width: '100%',
+    maxWidth: 400,
+    alignSelf: 'center',
+    ...Platform.select({
+      web: {
+        width: 400,
+      },
+    }),
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 8,
+    marginBottom: SPACING.md,
+    backgroundColor: COLORS.white,
+    ...SHADOWS.small,
+  },
+  inputIcon: {
+    marginHorizontal: SPACING.md,
+  },
+  input: {
+    flex: 1,
     fontFamily: FONT.regular,
     fontSize: SIZES.md,
-    color: COLORS.gray,
-    textAlign: 'center',
+    color: COLORS.darkGray,
+    paddingVertical: SPACING.md,
   },
-  roleContainer: {
-    flexDirection: Platform.OS === 'web' ? 'row' : 'column',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: SPACING.lg,
+  errorText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    color: COLORS.error,
+    marginBottom: SPACING.md,
   },
-  roleCard: {
-    width: Platform.OS === 'web' ? 300 : '100%',
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: SPACING.lg,
-    borderWidth: 2,
-    alignItems: 'center',
-    ...SHADOWS.medium,
-  },
-  iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: 'center',
+  loginButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: SPACING.md,
     alignItems: 'center',
     marginBottom: SPACING.md,
   },
-  roleTitle: {
+  loginButtonText: {
+     textAlign: 'center',
     fontFamily: FONT.semiBold,
-    fontSize: SIZES.lg,
-    color: COLORS.darkGray,
-    marginBottom: SPACING.xs,
+    fontSize: SIZES.md,
+    color: COLORS.white,
   },
-  roleDescription: {
-    fontFamily: FONT.regular,
+  forgotPasswordLink: {
+    alignItems: 'center',
+    marginTop: SPACING.sm,
+  },
+  forgotPasswordText: {
+    fontFamily: FONT.medium,
     fontSize: SIZES.sm,
+    color: COLORS.primary,
+  },
+  footer: {
+    marginTop: SPACING.xl,
+    alignItems: 'center',
+  },
+  helpText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.xs,
     color: COLORS.gray,
     textAlign: 'center',
   },
-});
+}); 
