@@ -28,8 +28,8 @@ const initialCourses = [
     name: 'Advanced Database Systems',
     description: 'Advanced concepts in database management and design',
     students: 30,
-    duration: '16 weeks',
     instructor: 'Mr.Ram',
+    duration: 16,
     category: 'CS',
     credits: 4,
   },
@@ -38,7 +38,7 @@ const initialCourses = [
     name: 'Web Development',
     description: 'Modern web development techniques and frameworks',
     students: 25,
-    duration: '12 weeks',
+    duration: 12,
     instructor: 'Mr.Kumar',
     category: 'CT',
     credits: 3,
@@ -73,18 +73,17 @@ export default function FacultyCoursesScreen() {
     const preparedCourse = {
       ...newCourse,
       credits: Number(newCourse.credits),
+      duration: Number(newCourse.duration),
       students: newCourse.students || 0,
     };
 
     if (isEditing) {
-      // Update existing course
       setCourses((prev) =>
         prev.map((course) =>
           course.id === preparedCourse.id ? preparedCourse : course
         )
       );
     } else {
-      // Add new course
       const newId = (Math.random() * 100000).toFixed(0);
       setCourses((prev) => [...prev, { ...preparedCourse, id: newId }]);
     }
@@ -101,12 +100,13 @@ export default function FacultyCoursesScreen() {
       students: 0,
     });
   };
+
   interface Course {
     id: string;
     name: string;
     description: string;
     students: number;
-    duration: string;
+    duration: number;
     instructor: string;
     category: string;
     credits: number;
@@ -116,6 +116,7 @@ export default function FacultyCoursesScreen() {
     setNewCourse({
       ...course,
       credits: course.credits.toString(),
+      duration: course.duration.toString(),
     });
     setIsEditing(true);
     setIsModalVisible(true);
@@ -127,189 +128,189 @@ export default function FacultyCoursesScreen() {
 
   return (
     <View style={styles.container}>
-        <Header title="My Courses" />
+      <Header title="My Courses" />
 
-        <View style={styles.content}>
-          <View style={styles.searchContainer}>
-            <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
-            <TextInput
-              style={styles.searchInput}
-              placeholder="Search courses..."
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholderTextColor={COLORS.gray}
-            />
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={() => {
-                setIsModalVisible(true);
-                setIsEditing(false);
-                setNewCourse({
-                  id: '',
-                  name: '',
-                  description: '',
-                  duration: '',
-                  instructor: '',
-                  category: '',
-                  credits: '',
-                  students: 0,
-                });
-              }}
-            >
-              <Plus size={24} color={COLORS.white} />
-            </TouchableOpacity>
-          </View>
-
-          <FlatList
-            data={filteredCourses}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <View style={styles.courseCard}>
-                <TouchableOpacity
-                  onPress={() => router.push('/(faculty)/coursedetails')}
-                >
-                  <Text style={styles.courseName}>{item.name}</Text>
-                  <Text style={styles.courseDescription}>
-                    {item.description}
-                  </Text>
-
-                  <View style={styles.courseStats}>
-                    <View style={styles.statItem}>
-                      <Users size={16} color={COLORS.gray} />
-                      <Text style={styles.statText}>
-                        {item.students} Students
-                      </Text>
-                    </View>
-
-                    <View style={styles.statItem}>
-                      <Clock size={16} color={COLORS.gray} />
-                      <Text style={styles.statText}>{item.duration}</Text>
-                    </View>
-
-                    <View style={styles.statItem}>
-                      <FileText size={16} color={COLORS.gray} />
-                      <Text style={styles.statText}>
-                        {item.credits} Credits
-                      </Text>
-                    </View>
-                  </View>
-                </TouchableOpacity>
-
-                <View style={styles.cardButtons}>
-                  <TouchableOpacity
-                    onPress={() => handleEdit(item)}
-                    style={styles.editButton}
-                  >
-                    <Edit size={20} color={COLORS.primary} />
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    onPress={() => handleDelete(item.id)}
-                    style={styles.deleteButton}
-                  >
-                    <Trash2 size={20} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            )}
-            contentContainerStyle={styles.coursesList}
+      <View style={styles.content}>
+        <View style={styles.searchContainer}>
+          <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search courses..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            placeholderTextColor={COLORS.gray}
           />
-
-          <Modal
-            visible={isModalVisible}
-            transparent={true}
-            animationType="slide"
-            onRequestClose={() => setIsModalVisible(false)}
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              setIsModalVisible(true);
+              setIsEditing(false);
+              setNewCourse({
+                id: '',
+                name: '',
+                description: '',
+                duration: '',
+                instructor: '',
+                category: '',
+                credits: '',
+                students: 0,
+              });
+            }}
           >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <Text style={styles.modalTitle}>
-                  {isEditing ? 'Edit Course' : 'Add New Course'}
+            <Plus size={24} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
+
+        <FlatList
+          data={filteredCourses}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <View style={styles.courseCard}>
+              <TouchableOpacity
+                onPress={() => router.push('/(faculty)/coursedetails')}
+              >
+                <Text style={styles.courseName}>{item.name}</Text>
+                <Text style={styles.courseDescription}>
+                  {item.description}
                 </Text>
 
-                <TextInput
-                  style={styles.input}
-                  placeholder="Course Name"
-                  value={newCourse.name}
-                  onChangeText={(text) =>
-                    setNewCourse({ ...newCourse, name: text })
-                  }
-                  placeholderTextColor={COLORS.gray}
-                />
-
-                <TextInput
-                  style={styles.input}
-                  placeholder="Description"
-                  value={newCourse.description}
-                  onChangeText={(text) =>
-                    setNewCourse({ ...newCourse, description: text })
-                  }
-                  placeholderTextColor={COLORS.gray}
-                  multiline
-                />
-
-                <TextInput
-                  style={styles.input}
-                  placeholder="Duration (e.g., 16 weeks)"
-                  value={newCourse.duration}
-                  onChangeText={(text) =>
-                    setNewCourse({ ...newCourse, duration: text })
-                  }
-                  placeholderTextColor={COLORS.gray}
-                />
-
-                <TextInput
-                  style={styles.input}
-                  placeholder="Instructor Name"
-                  value={newCourse.instructor}
-                  onChangeText={(text) =>
-                    setNewCourse({ ...newCourse, instructor: text })
-                  }
-                  placeholderTextColor={COLORS.gray}
-                />
-
-                <TextInput
-                  style={styles.input}
-                  placeholder="Category"
-                  value={newCourse.category}
-                  onChangeText={(text) =>
-                    setNewCourse({ ...newCourse, category: text })
-                  }
-                  placeholderTextColor={COLORS.gray}
-                />
-
-                <TextInput
-                  style={styles.input}
-                  placeholder="Credits"
-                  value={newCourse.credits}
-                  onChangeText={(text) =>
-                    setNewCourse({ ...newCourse, credits: text })
-                  }
-                  placeholderTextColor={COLORS.gray}
-                  keyboardType="numeric"
-                />
-
-                <View style={styles.modalButtons}>
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.cancelButton]}
-                    onPress={() => setIsModalVisible(false)}
-                  >
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[styles.modalButton, styles.addButtonModal]}
-                    onPress={handleAddOrEditCourse}
-                  >
-                    <Text style={styles.addButtonText}>
-                      {isEditing ? 'Save Changes' : 'Add Course'}
+                <View style={styles.courseStats}>
+                  <View style={styles.statItem}>
+                    <Users size={16} color={COLORS.gray} />
+                    <Text style={styles.statText}>
+                      {item.students} Students
                     </Text>
-                  </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.statItem}>
+                    <Clock size={16} color={COLORS.gray} />
+                    <Text style={styles.statText}>{item.duration} weeks</Text>
+                  </View>
+
+                  <View style={styles.statItem}>
+                    <FileText size={16} color={COLORS.gray} />
+                    <Text style={styles.statText}>
+                      {item.credits} Credits
+                    </Text>
+                  </View>
                 </View>
+              </TouchableOpacity>
+
+              <View style={styles.cardButtons}>
+                <TouchableOpacity
+                  onPress={() => handleEdit(item)}
+                  style={styles.editButton}
+                >
+                  <Edit size={20} color={COLORS.primary} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleDelete(item.id)}
+                  style={styles.deleteButton}
+                >
+                  <Trash2 size={20} />
+                </TouchableOpacity>
               </View>
             </View>
-          </Modal>
-        </View>
+          )}
+          contentContainerStyle={styles.coursesList}
+        />
+
+        <Modal
+          visible={isModalVisible}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setIsModalVisible(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <Text style={styles.modalTitle}>
+                {isEditing ? 'Edit Course' : 'Add New Course'}
+              </Text>
+
+              <TextInput
+                style={styles.input}
+                placeholder="Course Name"
+                value={newCourse.name}
+                onChangeText={(text) =>
+                  setNewCourse({ ...newCourse, name: text })
+                }
+                placeholderTextColor={COLORS.gray}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Description"
+                value={newCourse.description}
+                onChangeText={(text) =>
+                  setNewCourse({ ...newCourse, description: text })
+                }
+                placeholderTextColor={COLORS.gray}
+                multiline
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Instructor Name"
+                value={newCourse.instructor}
+                onChangeText={(text) =>
+                  setNewCourse({ ...newCourse, instructor: text })
+                }
+                placeholderTextColor={COLORS.gray}
+              />
+
+              <TextInput
+                style={styles.input}
+                placeholder="Category"
+                value={newCourse.category}
+                onChangeText={(text) =>
+                  setNewCourse({ ...newCourse, category: text })
+                }
+                placeholderTextColor={COLORS.gray}
+              />
+
+               <TextInput
+                style={styles.input}
+                placeholder="Duration (in weeks)"
+                value={newCourse.duration}
+                onChangeText={(text) =>
+                  setNewCourse({ ...newCourse, duration: text })
+                }
+                placeholderTextColor={COLORS.gray}
+                keyboardType="numeric"
+              />
+              <TextInput
+                style={styles.input}
+                placeholder="Credits"
+                value={newCourse.credits}
+                onChangeText={(text) =>
+                  setNewCourse({ ...newCourse, credits: text })
+                }
+                placeholderTextColor={COLORS.gray}
+                keyboardType="numeric"
+              />
+
+              <View style={styles.modalButtons}>
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.cancelButton]}
+                  onPress={() => setIsModalVisible(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.modalButton, styles.addButtonModal]}
+                  onPress={handleAddOrEditCourse}
+                >
+                  <Text style={styles.addButtonText}>
+                    {isEditing ? 'Save Changes' : 'Add Course'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      </View>
     </View>
   );
 }
@@ -397,7 +398,6 @@ const styles = StyleSheet.create({
     marginRight: SPACING.md,
   },
   deleteButton: {},
-
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',

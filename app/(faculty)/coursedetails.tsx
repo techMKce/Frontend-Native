@@ -100,12 +100,14 @@ const removePDF = (index: number) => {
   style={[styles.actionBtn, { backgroundColor: '#eee' }]}
   onPress={() => setShowSheet(true)}
 >
-  <Text style={[styles.actionText, { color: '#333', marginLeft: 0 }]}>Add Content</Text>
-</TouchableOpacity>
-
+    <Text style={[styles.actionText, { color: '#333', marginLeft: 0 }]}>Add Content</Text>
+    </TouchableOpacity>
+      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#eee' }]}>
+        <Text style={[styles.actionText, { color: '#333', marginLeft: 0 }]}> content</Text>
+      </TouchableOpacity>
 
       <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#eee' }]}>
-        <Text style={[styles.actionText, { color: '#333', marginLeft: 0 }]}>Create Assignment</Text>
+        <Text style={[styles.actionText, { color: '#333', marginLeft: 0 }]}> Assignment</Text>
       </TouchableOpacity>
     </View>
   </View>
@@ -183,17 +185,17 @@ const removePDF = (index: number) => {
       ))}
 
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 20 }}>
-        <TouchableOpacity
-    style={{
+      <TouchableOpacity
+      style={{
       flex: 1,
       backgroundColor: '#eee',
       paddingVertical: 14,
       borderRadius: 10,
       marginRight: 8,
-      alignItems: 'center', // Center the text horizontally
+      alignItems: 'center', 
     }}
     onPress={() => setShowSheet(false)}
-  >
+    >
     <Text style={{ color: '#333', fontSize: 16, fontWeight: '600' }}>Cancel</Text>
   </TouchableOpacity>
 
