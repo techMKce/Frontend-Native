@@ -153,9 +153,10 @@ const SyllabusViewer = () => {
           <View>
             {links.map((title, index) => (
               <View key={index} style={styles.contentCard}>
-                <Text style={{ fontWeight: 'bold' }}>{title}</Text>
-                <Text>{description}</Text>
-              </View>
+  <Text style={styles.cardTitle}>{title}</Text>
+  <Text style={styles.cardDescription}>{description}</Text>
+</View>
+
             ))}
             {pdfs.map((pdf, index) => (
               <View key={index} style={styles.contentCard}>
@@ -285,7 +286,16 @@ const styles = StyleSheet.create({
   actionBtn: { padding: 8, borderRadius: 8, backgroundColor: '#4a90e2' },
   actionText: { fontSize: 14, alignSelf: 'center', color: 'white' },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  contentCard: { padding: 12, margin: 12, backgroundColor: '#f5f5f5', borderRadius: 10 },
+  contentCard: { backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginVertical: 8,
+    marginHorizontal: 16,
+    elevation: 4, // for Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 6, },
   modalContainer: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.3)' },
   modalContent: { backgroundColor: 'white', padding: 16, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
   input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginTop: 4,  marginRight: 3, height: 50 },
@@ -340,5 +350,16 @@ const styles = StyleSheet.create({
   },
   sectionText: {
     fontSize: 16,
+  },
+
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    color: '#333',
+  },
+  cardDescription: {
+    fontSize: 14,
+    color: '#666',
   },
 });
