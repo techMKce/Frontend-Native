@@ -156,7 +156,7 @@ export default function ForgotPasswordScreen() {
           </Text>
         </View>
       </ScrollView>
-      
+       <Toast topOffset={60} />
     </KeyboardAvoidingView>
   );
 }

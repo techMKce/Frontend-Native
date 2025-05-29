@@ -4,7 +4,7 @@ import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useLocalSearchParams, Link } from 'expo-router';
 import { ChevronLeft, Lock, Mail } from 'lucide-react-native';
-import Toast from 'react-native-toast-message';
+
 
 
 export default function LoginScreen() {
@@ -127,7 +127,6 @@ export default function LoginScreen() {
           </Text>
         </View>
       </ScrollView>
-      <Toast/>
     </KeyboardAvoidingView>
   );
 }
