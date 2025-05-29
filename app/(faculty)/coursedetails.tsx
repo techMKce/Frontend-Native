@@ -3,6 +3,7 @@ import React, {useState} from 'react'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { Clock, FileText, Plus } from 'lucide-react-native';
 import LottieView from 'lottie-react-native';
+import Pdf from 'react-native-pdf';
 import * as DocumentPicker from 'expo-document-picker';
 
 const coursedetails = () => {
@@ -16,6 +17,7 @@ const coursedetails = () => {
   // Toggle bar function
   const [activeTab, setActiveTab] = useState('Content');
   //Toggle bar function
+  
 
   const pickPDF = async () => {
     const result = await DocumentPicker.getDocumentAsync({ type: 'application/pdf', multiple: true });
@@ -39,6 +41,16 @@ const coursedetails = () => {
 const removePDF = (index: number) => {
   setPdfs(prev => prev.filter((_, i) => i !== index));
 };
+
+const SyllabusViewer = () => {
+  const [showPdf, setShowPdf] = useState(false);
+
+  // PDF Source (use a real file path or remote URL)
+  const pdfSource = {
+    uri: 'https://www.africau.edu/images/default/sample.pdf', // Replace with your actual URL or local path
+    cache: true,
+  };
+}
 
 
   return (
@@ -77,8 +89,12 @@ const removePDF = (index: number) => {
 
           <View style={styles.footerRow}>
             <View style={styles.syllabusBox}>
-              <FileText size={18} color="#888" />
+              <TouchableOpacity>
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <FileText size={20} color="#888" />
               <Text style={styles.syllabusText}>Syllabus</Text>
+              </View>
+              </TouchableOpacity>
             </View>
             <TouchableOpacity
                 style={[styles.actionBtn]}
@@ -92,10 +108,6 @@ const removePDF = (index: number) => {
                 <Text style={[styles.actionText,]}>Add Assignments</Text>
             </TouchableOpacity>
           </View>
-        </View>
-
-        <View>
-            
         </View>
 
         <View style={styles.tabContainer}>
@@ -168,6 +180,8 @@ const removePDF = (index: number) => {
       )}
 
       </ScrollView>
+
+      
 
       <Modal
         visible={showSheet}
