@@ -26,10 +26,30 @@ import {
   ChartBar as BarChart3,
 } from 'lucide-react-native';
 import api from '@/service/api';
+import { useRouter } from 'expo-router';
 
 /* -------------------------------------------------------------------------- */
 /*                             ─── COMPONENT ───                              */
 /* -------------------------------------------------------------------------- */
+
+type AttendanceSessionData = {
+  session: string;
+  stdId: string;
+  sem: number;
+  stdName: string;
+  batch: string;
+  deptId: string;
+  deptName: string;
+  presentcount: number;
+  totaldays: number;
+  percentage: number;
+};
+
+type AttendanceData = {
+  forenoon?: AttendanceSessionData;
+  afternoon?: AttendanceSessionData;
+  overallPercentage?: number;
+};
 
 export default function StudentDashboard() {
   const { user } = useAuth();
@@ -52,6 +72,7 @@ export default function StudentDashboard() {
       }
     >
   >({});
+  const router = useRouter();
 
   /* modal state */
   const [modalVisible, setModalVisible] = useState(false);
@@ -61,40 +82,61 @@ export default function StudentDashboard() {
     const fetchAttendanceData = async () => {
       try {
         setLoading(true);
-        // Assuming user object has necessary student info
-        const response = await api.get('/attpercent', {
+        const response = await api.get('/getstudent', {
           params: {
-            stdId: user?.id,
+            id:user?.id,
           },
-        });
-        
-        // Transform the API response to match our expected format
-        const apiData = response.data;
-        
-        // Set overall attendance
-        setAttendanceData({
-          percentage: apiData.percentage,
-          presentsession: apiData.presentsession,
-          totalsession: apiData.totalsession,
-          afternoon: apiData.afternoon,
-          forenoon: apiData.forenoon,
         });
 
-        // If you have data for multiple semesters from the API, transform it here
-        // For now, we'll use the single semester response directly
-        setSemesterAttendanceDetails({
-          [apiData.sem]: {
-            percentage: apiData.percentage,
-            FN: {
-              present: apiData.forenoon,
-              conducted: apiData.totalsession, // Using total session as conducted
-            },
-            AN: {
-              present: apiData.afternoon,
-              conducted: apiData.totalsession, // Using total session as conducted
-            },
-          },
+        const apiData = response.data as AttendanceSessionData[];
+
+        // Transform the API response
+        const transformedData: AttendanceData = {
+          forenoon: apiData.find(item => item.session === 'forenoon'),
+          afternoon: apiData.find(item => item.session === 'afternoon'),
+          overallPercentage: apiData[0]?.percentage // Using first item's percentage as overall
+        };
+
+        setAttendanceData({
+          percentage: transformedData.overallPercentage || 0,
+          presentsession: (transformedData.forenoon?.presentcount || 0) +
+            (transformedData.afternoon?.presentcount || 0),
+          totalsession: (transformedData.forenoon?.totaldays || 0) +
+            (transformedData.afternoon?.totaldays || 0),
+          afternoon: transformedData.afternoon?.presentcount || 0,
+          forenoon: transformedData.forenoon?.presentcount || 0,
         });
+
+        // Group by semester
+        const semesterData: Record<number, {
+          percentage: number;
+          FN: { conducted: number; present: number };
+          AN: { conducted: number; present: number };
+        }> = {};
+
+        apiData.forEach(item => {
+          if (!semesterData[item.sem]) {
+            semesterData[item.sem] = {
+              percentage: item.percentage,
+              FN: { present: 0, conducted: 0 },
+              AN: { present: 0, conducted: 0 }
+            };
+          }
+
+          if (item.session === 'forenoon') {
+            semesterData[item.sem].FN = {
+              present: item.presentcount,
+              conducted: item.totaldays
+            };
+          } else if (item.session === 'afternoon') {
+            semesterData[item.sem].AN = {
+              present: item.presentcount,
+              conducted: item.totaldays
+            };
+          }
+        });
+
+        setSemesterAttendanceDetails(semesterData);
       } catch (err) {
         setError('Failed to fetch attendance data');
         console.error('Error fetching attendance:', err);
@@ -254,7 +296,7 @@ export default function StudentDashboard() {
               Download your{' '}
               <Text style={styles.examHighlight}>Exam Timetable</Text>
             </Text>
-            <TouchableOpacity style={styles.viewTimetableButton}>
+            <TouchableOpacity style={styles.viewTimetableButton} onPress={() => router.push('/exam-timetable')}>
               <Text style={styles.viewTimetableText}>View Full Timetable</Text>
             </TouchableOpacity>
           </View>
@@ -265,68 +307,68 @@ export default function StudentDashboard() {
       </ScrollView>
 
       {/* ────────────────────────── Attendance Modal ─────────────────────────── */}
-        <Modal visible={modalVisible} transparent animationType="slide">
-          <View style={styles.modalOverlay}>
-            <View style={styles.modalContainer}>
-              <Text style={styles.modalTitle}>Select Semester</Text>
+      <Modal visible={modalVisible} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Select Semester</Text>
 
-              {/* Semester buttons */}
-              <View style={styles.semesterGrid}>
-                {Object.keys(semesterAttendanceDetails).map((sem) => {
-                  const semester = parseInt(sem);
-                  const selected = selectedSemester === semester;
-                  return (
-                    <TouchableOpacity
-                      key={semester}
+            {/* Semester buttons */}
+            <View style={styles.semesterGrid}>
+              {Object.keys(semesterAttendanceDetails).map((sem) => {
+                const semester = parseInt(sem);
+                const selected = selectedSemester === semester;
+                return (
+                  <TouchableOpacity
+                    key={semester}
+                    style={[
+                      styles.semesterButton,
+                      selected && styles.semesterButtonSelected,
+                    ]}
+                    onPress={() => setSelectedSemester(semester)}
+                  >
+                    <Text
                       style={[
-                        styles.semesterButton,
-                        selected && styles.semesterButtonSelected,
+                        styles.semesterText,
+                        selected && { color: COLORS.white },
                       ]}
-                      onPress={() => setSelectedSemester(semester)}
                     >
-                      <Text
-                        style={[
-                          styles.semesterText,
-                          selected && { color: COLORS.white },
-                        ]}
-                      >
-                        Semester {semester}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-
-              {/* Attendance details */}
-              {selectedSemester && (
-                <View style={styles.attendanceDetail}>
-                  <Text style={styles.attendanceDetailText}>
-                    Attendance: {semesterAttendanceDetails[selectedSemester].percentage}%
-                  </Text>
-                  <Text style={styles.attendanceDetailText}>
-                    FN — Conducted: {semesterAttendanceDetails[selectedSemester].FN.conducted} | 
-                    Present: {semesterAttendanceDetails[selectedSemester].FN.present}
-                  </Text>
-                  <Text style={styles.attendanceDetailText}>
-                    AN — Conducted: {semesterAttendanceDetails[selectedSemester].AN.conducted} | 
-                    Present: {semesterAttendanceDetails[selectedSemester].AN.present}
-                  </Text>
-                </View>
-              )}
-
-              {/* Close */}
-              <Pressable
-                style={styles.closeButton}
-                onPress={() => {
-                  setModalVisible(false);
-                  setSelectedSemester(null);
-                }}
-              >
-                <Text style={styles.closeButtonText}>Close</Text>
-              </Pressable>
+                      Semester {semester}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
+
+            {/* Attendance details */}
+            {selectedSemester && (
+              <View style={styles.attendanceDetail}>
+                <Text style={styles.attendanceDetailText}>
+                  Overall Attendance: {semesterAttendanceDetails[selectedSemester].percentage.toFixed(1)}%
+                </Text>
+                <Text style={styles.attendanceDetailText}>
+                  FN — Present: {semesterAttendanceDetails[selectedSemester].FN.present} /
+                  {semesterAttendanceDetails[selectedSemester].FN.conducted} days
+                </Text>
+                <Text style={styles.attendanceDetailText}>
+                  AN — Present: {semesterAttendanceDetails[selectedSemester].AN.present} /
+                  {semesterAttendanceDetails[selectedSemester].AN.conducted} days
+                </Text>
+              </View>
+            )}
+
+            {/* Close */}
+            <Pressable
+              style={styles.closeButton}
+              onPress={() => {
+                setModalVisible(false);
+                setSelectedSemester(null);
+              }}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
           </View>
-        </Modal>
+        </View>
+      </Modal>
     </View>
   );
 }

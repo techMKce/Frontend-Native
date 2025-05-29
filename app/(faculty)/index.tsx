@@ -4,6 +4,7 @@ import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import { useAuth } from '@/context/AuthContext';
 import { Users, BookOpen, Calendar, ChevronRight, ChartBar as BarChart } from 'lucide-react-native';
+import { useRouter } from 'expo-router';
 
 const mockDashboardData = {
   totalStudents: 120,
@@ -21,11 +22,12 @@ const mockDashboardData = {
 
 export default function FacultyDashboard() {
   const { user } = useAuth();
+  const router = useRouter(); 
 
   return (
     <View style={styles.container}>
       <Header title={`Welcome, ${user?.name.split(' ')[0] || 'Faculty'}`} />
-      
+
       <ScrollView style={styles.scrollContainer}>
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, styles.studentsCard]}>
@@ -37,7 +39,7 @@ export default function FacultyDashboard() {
               <Text style={styles.statLabel}>Total Students</Text>
             </View>
           </View>
-          
+
           <View style={[styles.statCard, styles.coursesCard]}>
             <View style={styles.statIconContainer}>
               <BookOpen size={24} color={COLORS.secondary} />
@@ -47,7 +49,7 @@ export default function FacultyDashboard() {
               <Text style={styles.statLabel}>Active Courses</Text>
             </View>
           </View>
-          
+
           <View style={[styles.statCard, styles.attendanceCard]}>
             <View style={styles.statIconContainer}>
               <BarChart size={24} color={COLORS.accent} />
@@ -66,7 +68,7 @@ export default function FacultyDashboard() {
               <Text style={styles.viewAllText}>View Schedule</Text>
             </TouchableOpacity>
           </View>
-          
+
           {mockDashboardData.upcomingClasses.map((classItem) => (
             <TouchableOpacity key={classItem.id} style={styles.classCard}>
               <View style={styles.classInfo}>
@@ -89,7 +91,7 @@ export default function FacultyDashboard() {
               <Text style={styles.viewAllText}>View All</Text>
             </TouchableOpacity>
           </View>
-          
+
           {mockDashboardData.recentAttendance.map((record) => (
             <TouchableOpacity key={record.id} style={styles.attendanceCard}>
               <View style={styles.attendanceInfo}>
@@ -109,6 +111,24 @@ export default function FacultyDashboard() {
               <ChevronRight size={20} color={COLORS.gray} />
             </TouchableOpacity>
           ))}
+        </View>
+
+        {/* ──────────── Exam Timetable ──────────── */}
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Exam Timetable</Text>
+            <Calendar size={20} color={COLORS.primary} />
+          </View>
+
+          <View style={styles.examTimetableCard}>
+            <Text style={styles.examTimetableText}>
+              Download your{' '}
+              <Text style={styles.examHighlight}>Exam Timetable</Text>
+            </Text>
+            <TouchableOpacity style={styles.viewTimetableButton} onPress={() => router.push('/exam-timetable')}>
+              <Text style={styles.viewTimetableText}>View Full Timetable</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={{ height: 80 }} />
@@ -246,5 +266,32 @@ const styles = StyleSheet.create({
     fontFamily: FONT.regular,
     fontSize: SIZES.sm,
     color: COLORS.gray,
+  },
+  /* exam timetable */
+  examTimetableCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: SPACING.lg,
+    ...SHADOWS.small,
+  },
+  examTimetableText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.md,
+    color: COLORS.darkGray,
+    marginBottom: SPACING.md,
+    textAlign: 'center',
+  },
+  examHighlight: { fontFamily: FONT.semiBold, color: COLORS.primary },
+  viewTimetableButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    alignSelf: 'center',
+  },
+  viewTimetableText: {
+    fontFamily: FONT.medium,
+    fontSize: SIZES.sm,
+    color: COLORS.white,
   },
 });
