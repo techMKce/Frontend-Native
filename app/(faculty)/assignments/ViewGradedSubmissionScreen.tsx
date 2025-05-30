@@ -12,7 +12,7 @@ import {
 import { Card, IconButton, Button } from 'react-native-paper';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import { useLocalSearchParams } from 'expo-router';
-
+import * as WebBrowser from 'expo-web-browser';
 const ViewGradedSubmissionScreen = () => {
   const { id: submissionId } = useLocalSearchParams();
 
@@ -153,6 +153,9 @@ const ViewGradedSubmissionScreen = () => {
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
+      <TouchableOpacity onPress={() => navigation.goBack()}>
+              <Text style={styles.backLink}>{'< Back to All Submissions'}</Text>
+            </TouchableOpacity>
       <Text style={styles.title}>View Graded Submission</Text>
       {/* <Text style={styles.subtitle}>Assignment ID: {submission.assignmentId}</Text> */}
 
@@ -175,8 +178,14 @@ const ViewGradedSubmissionScreen = () => {
           <View style={styles.docRow}>
             <FontAwesome5 name="file-pdf" size={16} color="white" style={styles.pdfIcon} />
             <Text style={styles.docText}>{fileNo || 'Document.pdf'}</Text>
-            <IconButton icon="eye" size={18} onPress={() => {}} />
-            <IconButton icon="download" size={18} onPress={() => {}} />
+            <IconButton icon="download" size={18}  onPress={async () => {
+                            const url = `https://assignmentservice-2a8o.onrender.com/api/submissions/download?submissionId=${submissionId}`;
+                            try {
+                              await WebBrowser.openBrowserAsync(url);
+                            } catch (error: Error) {
+                              Alert.alert('Error', 'Failed to open file: ' + error.message);
+                            }
+                          }} />
           </View>
         </Card.Content>
       </Card>

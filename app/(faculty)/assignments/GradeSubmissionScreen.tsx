@@ -13,12 +13,21 @@ import { Button, Card, IconButton } from 'react-native-paper';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+
+interface Submission {
+  assignmentId: string;
+  studentName: string;
+  studentRollNumber: string;
+  submittedAt: string;
+  status: string;
+  fileNo: string;
+}
 
 const GradeSubmissionScreen = () => {
-  const { id } = useLocalSearchParams(); // id from query param (e.g., /gradeSubmission?id=S001)
-  const submissionId = id;
-
-  const [submission, setSubmission] = useState(null);
+  const { id } = useLocalSearchParams();
+  const submissionId = id as string;
+  const [submission, setSubmission] = useState<Submission | null>(null);
   const [selectedGrade, setSelectedGrade] = useState('');
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(true);
@@ -55,7 +64,7 @@ const GradeSubmissionScreen = () => {
         } else {
           Alert.alert('Error', data.message || 'No submission data found.');
         }
-      } catch (error) {
+      } catch (error: Error) {
         Alert.alert('Error', 'Failed to load submission: ' + error.message);
       } finally {
         setLoading(false);
@@ -88,7 +97,6 @@ const GradeSubmissionScreen = () => {
         <Text style={styles.backLink}>{'< Back to All Submissions'}</Text>
       </TouchableOpacity>
       <Text style={styles.title}>Grade Submission</Text>
-      <Text style={styles.subtitle}>Assignment ID: {submission.assignmentId}</Text>
 
       <Card style={styles.fullCard}>
         <Card.Title title="STUDENT INFORMATION" titleStyle={styles.cardTitle} />
@@ -116,12 +124,15 @@ const GradeSubmissionScreen = () => {
             <FontAwesome5 name="file-pdf" size={16} color="white" style={styles.pdfIcon} />
             <Text style={styles.docText}>submission_{submission.fileNo}.pdf</Text>
             <IconButton
-              icon="eye"
+              icon="download"
               size={18}
-              onPress={() => {
-                const url = `https://assignmentservice-2a8o.onrender.com/api/files/${submission.fileNo}`;
-                Alert.alert('Preview', `Open file at:\n${url}`);
-                // Optionally use WebBrowser.openBrowserAsync(url)
+              onPress={async () => {
+                const url = `https://assignmentservice-2a8o.onrender.com/api/submissions/download?submissionId=${submissionId}`;
+                try {
+                  await WebBrowser.openBrowserAsync(url);
+                } catch (error: Error) {
+                  Alert.alert('Error', 'Failed to open file: ' + error.message);
+                }
               }}
             />
           </View>
@@ -211,7 +222,7 @@ const GradeSubmissionScreen = () => {
                 } else {
                   Alert.alert('Error', data.message || 'Failed to submit grade.');
                 }
-              } catch (error) {
+              } catch (error: Error) {
                 Alert.alert('Error', 'Network error while submitting grade: ' + error.message);
               }
             }}
