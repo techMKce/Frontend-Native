@@ -1,0 +1,78 @@
+<Text>Video</Text>
+            <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    borderWidth: 1,
+                    borderColor: '#ccc',
+                    borderRadius: 5,
+                    padding: 8,
+                    marginRight: 10,
+                  }}
+                  placeholder="Video URL"
+                  value={videoUrl}
+                  onChangeText={setVideoUrl}
+                />
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#007BFF',
+                    paddingVertical: 8,
+                    paddingHorizontal: 15,
+                    borderRadius: 5,
+                  }}
+                  onPress={() => {
+                    if (videoUrl.trim()) {
+                      setVideoUrls([...videoUrls, videoUrl.trim()]);
+                      setVideoUrl('');
+                    }
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Add</Text>
+                </TouchableOpacity>
+              </View>
+              {videoUrls.map((url, idx) => (
+                <Text key={idx} style={{ marginBottom: 5, color: 'gray' }}>
+                  {url}
+                </Text>
+              ))}
+            </View>
+          <Text>Pdf</Text>
+          <View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                <TextInput
+                  style={{
+                    flex: 1,
+                    borderWidth: 1,
+                    borderColor: '#ccc',
+                    borderRadius: 5,
+                    padding: 8,
+                    marginRight: 10,
+                  }}
+                  placeholder="Pdf URL"
+                  value={pdfUrl}
+                  onChangeText={setPdfUrl}
+                />
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: '#007BFF',
+                    paddingVertical: 8,
+                    paddingHorizontal: 15,
+                    borderRadius: 5,
+                  }}
+                  onPress={() => {
+                    if (pdfUrl.trim()) {
+                      setPdfUrls([...pdfUrls, pdfUrl.trim()]);
+                      setPdfUrl('');
+                    }
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: 'bold' }}>Add</Text>
+                </TouchableOpacity>
+              </View>
+              {pdfUrls.map((url, idx) => (
+                <Text key={idx} style={{ marginBottom: 5, color: 'gray' }}>
+                  {url}
+                </Text>
+              ))}
+            </View>

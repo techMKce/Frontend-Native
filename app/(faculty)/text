@@ -1,0 +1,112 @@
+const handleAddSection = () => {
+    // Example: Add new section to course.sections (in real app, update backend)
+    course.sections.push({
+      id: (course.sections.length + 1).toString(),
+      title: newSection.title,
+      description: newSection.description,
+      videos: newSection.videos.map((v, i) => ({ title: `Video ${i + 1}`, link: v })),
+      pdfs: newSection.pdfs.map((p, i) => ({ title: `PDF ${i + 1}`, link: p })),
+    });
+    setNewSection({ title: '', description: '', videos: [], pdfs: [] });
+    setShowAddSectionForm(false);
+  };
+
+  const [showAddSectionForm, setShowAddSectionForm] = useState(false);
+
+
+   {showAddSectionForm && (
+            <View style={{ backgroundColor: '#f9f9f9', padding: 15, borderRadius: 8, marginTop: 10 }}>
+              <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>Add Section</Text>
+              <TextInput
+                placeholder="Title"
+                value={newSection.title}
+                onChangeText={(text) => setNewSection((prev) => ({ ...prev, title: text }))}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 5, marginBottom: 8, padding: 8 }}
+              />
+              <TextInput
+                placeholder="Description"
+                value={newSection.description}
+                onChangeText={(text) => setNewSection((prev) => ({ ...prev, description: text }))}
+                style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 5, marginBottom: 8, padding: 8 }}
+              />
+
+              <Text style={{ marginBottom: 4 }}>Video URLs</Text>
+              {newSection.videos.map((video, idx) => (
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <TextInput
+                    placeholder="Video URL"
+                    value={video}
+                    onChangeText={(text) => {
+                      const videos = [...newSection.videos];
+                      videos[idx] = text;
+                      setNewSection((prev) => ({ ...prev, videos }));
+                    }}
+                    style={{ flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 5, padding: 8 }}
+                  />
+                  <TouchableOpacity
+                    onPress={() => {
+                      setNewSection((prev) => ({
+                        ...prev,
+                        videos: prev.videos.filter((_, i) => i !== idx),
+                      }));
+                    }}
+                    style={{ marginLeft: 8 }}
+                  >
+                    <Text style={{ color: 'red' }}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <TouchableOpacity
+                onPress={() => setNewSection((prev) => ({ ...prev, videos: [...prev.videos, ''] }))}
+                style={{ marginBottom: 8 }}
+              >
+                <Text style={{ color: 'blue' }}>+ Add Video URL</Text>
+              </TouchableOpacity>
+
+              <Text style={{ marginBottom: 4 }}>PDF URLs</Text>
+              {newSection.pdfs.map((pdf, idx) => (
+                <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+                  <TextInput
+                    placeholder="PDF URL"
+                    value={pdf}
+                    onChangeText={(text) => {
+                      const pdfs = [...newSection.pdfs];
+                      pdfs[idx] = text;
+                      setNewSection((prev) => ({ ...prev, pdfs }));
+                    }}
+                    style={{ flex: 1, borderWidth: 1, borderColor: '#ccc', borderRadius: 5, padding: 8 }}
+                  />
+                  <TouchableOpacity
+                    onPress={() => {
+                      setNewSection((prev) => ({
+                        ...prev,
+                        pdfs: prev.pdfs.filter((_, i) => i !== idx),
+                      }));
+                    }}
+                    style={{ marginLeft: 8 }}
+                  >
+                    <Text style={{ color: 'red' }}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              <TouchableOpacity
+                onPress={() => setNewSection((prev) => ({ ...prev, pdfs: [...prev.pdfs, ''] }))}
+                style={{ marginBottom: 8 }}
+              >
+                <Text style={{ color: 'blue' }}>+ Add PDF URL</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={{
+                  backgroundColor: '#007BFF',
+                  padding: 10,
+                  borderRadius: 5,
+                  alignItems: 'center',
+                  marginTop: 8,
+                }}
+                onPress={handleAddSection}
+              >
+                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Save Section</Text>
+              </TouchableOpacity>
+            </View>
+          )}
