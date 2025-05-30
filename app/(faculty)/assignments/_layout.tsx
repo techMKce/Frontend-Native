@@ -10,8 +10,6 @@ export default function AssignmentsLayout() {
       }}
     >
       <Stack.Screen name="index" />
-      <Stack.Screen name="create" />
-      <Stack.Screen name="edit" />
       <Stack.Screen name="grade" />
       <Stack.Screen name="review" />
     </Stack>

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -7,10 +8,12 @@ import {
   TouchableOpacity,
   StyleSheet,
   ActivityIndicator,
+  Alert,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import axios from 'axios';
+import * as WebBrowser from 'expo-web-browser';
 
 interface StudentSubmission {
   id: number;
@@ -20,7 +23,6 @@ interface StudentSubmission {
   grade?: string;
 }
 
-// Define the Grading interface based on the API response structure
 interface Grading {
   studentRollNumber: string;
   assignmentId: number;
@@ -36,6 +38,8 @@ export default function GradeSubmissionsScreen() {
   const [assignmentTitle, setAssignmentTitle] = useState<string>('');
   const [gradedCount, setGradedCount] = useState<number>(0);
 
+  const BASE_URL = 'https://assignmentservice-2a8o.onrender.com/api';
+
   useEffect(() => {
     if (!assignmentId) {
       console.error("Invalid assignment ID.");
@@ -46,13 +50,13 @@ export default function GradeSubmissionsScreen() {
     const fetchData = async () => {
       try {
         const [assignmentRes, submissionRes, gradingRes] = await Promise.all([
-          axios.get("https://assignmentservice-2a8o.onrender.com/api/assignments/id", {
+          axios.get(`${BASE_URL}/assignments/id`, {
             params: { assignmentId },
           }),
-          axios.get("https://assignmentservice-2a8o.onrender.com/api/submissions", {
-            params: { assignmentId },
+          axios.get(`${BASE_URL}/submissions`, {
+             params: { assignmentId },
           }),
-          axios.get("https://assignmentservice-2a8o.onrender.com/api/gradings", {
+          axios.get(`${BASE_URL}/gradings`, {
             params: { assignmentId },
           }),
         ]);
@@ -69,12 +73,10 @@ export default function GradeSubmissionsScreen() {
           ? submissionRes.data.submissions
           : [];
 
-        // Type gradingsData as an array of Grading
         const gradingsData: Grading[] = Array.isArray(gradingRes.data.gradings)
           ? gradingRes.data.gradings
           : [];
 
-        // Merge grade into each submission
         const mergedSubmissions = submissionsData.map((sub) => ({
           ...sub,
           grade: gradingsData.find(
@@ -98,7 +100,18 @@ export default function GradeSubmissionsScreen() {
     fetchData();
   }, [assignmentId]);
 
-  // Rest of the component remains unchanged
+  
+const handleDownloadReport = async () => {
+  
+
+    const url = `${BASE_URL}/gradings/download?assignmentId=${assignmentId}`;
+    try {
+      await WebBrowser.openBrowserAsync(url);
+
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while viewing the faculty file');
+    }
+  };
   const filtered = submissions.filter(
     (s) =>
       s.studentName.toLowerCase().includes(search.toLowerCase()) ||
@@ -150,6 +163,15 @@ export default function GradeSubmissionsScreen() {
         </View>
       </View>
 
+      {/* Download Report Button */}
+      <TouchableOpacity
+        style={styles.downloadButton}
+        onPress={handleDownloadReport}
+      >
+        <Icon name="download-outline" size={16} color="#fff" />
+        <Text style={styles.downloadButtonText}>Download Report</Text>
+      </TouchableOpacity>
+
       <TextInput
         placeholder="Search by student name or roll number..."
         style={styles.searchInput}
@@ -192,7 +214,7 @@ export default function GradeSubmissionsScreen() {
                   pathname: item.grade
                     ? '/(faculty)/assignments/ViewGradedSubmissionScreen'
                     : '/(faculty)/assignments/GradeSubmissionScreen',
-                  params: { id: item.id.toString() }, // Ensure id is a string
+                  params: { id: item.id.toString() },
                 });
               }}
             >
@@ -315,5 +337,22 @@ const styles = StyleSheet.create({
     color: '#1D4E89',
     fontSize: 14,
     fontWeight: '500',
+  },
+  // New styles for the download button
+  downloadButton: {
+    backgroundColor: '#1D4E89',
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  downloadButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
   },
 });
