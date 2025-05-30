@@ -14,6 +14,7 @@ import Icon from 'react-native-vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import axios from 'axios';
 import * as WebBrowser from 'expo-web-browser';
+import Api from '@/service/api';
 
 interface StudentSubmission {
   id: number;
@@ -38,7 +39,6 @@ export default function GradeSubmissionsScreen() {
   const [assignmentTitle, setAssignmentTitle] = useState<string>('');
   const [gradedCount, setGradedCount] = useState<number>(0);
 
-  const BASE_URL = 'https://assignmentservice-2a8o.onrender.com/api';
 
   useEffect(() => {
     if (!assignmentId) {
@@ -50,13 +50,13 @@ export default function GradeSubmissionsScreen() {
     const fetchData = async () => {
       try {
         const [assignmentRes, submissionRes, gradingRes] = await Promise.all([
-          axios.get(`${BASE_URL}/assignments/id`, {
+          Api.get(`/assignments/id`, {
             params: { assignmentId },
           }),
-          axios.get(`${BASE_URL}/submissions`, {
-             params: { assignmentId },
-          }),
-          axios.get(`${BASE_URL}/gradings`, {
+          Api.get(  `/submissions`, {
+           params: { assignmentId },
+}),
+          Api.get(`/gradings`, {
             params: { assignmentId },
           }),
         ]);
@@ -104,12 +104,12 @@ export default function GradeSubmissionsScreen() {
 const handleDownloadReport = async () => {
   
 
-    const url = `${BASE_URL}/gradings/download?assignmentId=${assignmentId}`;
+    const url = `https://assignmentservice-2a8o.onrender.com/api/gradings/download?assignmentId=${assignmentId}`;
     try {
       await WebBrowser.openBrowserAsync(url);
 
     } catch (err: any) {
-      setError(err.message || 'An error occurred while viewing the faculty file');
+     console.log(err.message || 'An error occurred while viewing the faculty file');
     }
   };
   const filtered = submissions.filter(

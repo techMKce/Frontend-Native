@@ -14,6 +14,7 @@ import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import Api from '@/service/api';
 
 interface Submission {
   assignmentId: string;
@@ -64,9 +65,9 @@ const GradeSubmissionScreen = () => {
         } else {
           Alert.alert('Error', data.message || 'No submission data found.');
         }
-      } catch (error: Error) {
-        Alert.alert('Error', 'Failed to load submission: ' + error.message);
-      } finally {
+      } catch (error: unknown) {
+  Alert.alert('Error', 'Failed to load submission: ' + (error as Error).message);
+}finally {
         setLoading(false);
       }
     };
@@ -130,9 +131,9 @@ const GradeSubmissionScreen = () => {
                 const url = `https://assignmentservice-2a8o.onrender.com/api/submissions/download?submissionId=${submissionId}`;
                 try {
                   await WebBrowser.openBrowserAsync(url);
-                } catch (error: Error) {
-                  Alert.alert('Error', 'Failed to open file: ' + error.message);
-                }
+                } catch (error: unknown) {
+  Alert.alert('Error', 'Failed to open file: ' + (error as Error).message);
+}
               }}
             />
           </View>
@@ -222,8 +223,8 @@ const GradeSubmissionScreen = () => {
                 } else {
                   Alert.alert('Error', data.message || 'Failed to submit grade.');
                 }
-              } catch (error: Error) {
-                Alert.alert('Error', 'Network error while submitting grade: ' + error.message);
+              } catch (error: unknown) {
+            Alert.alert('Error', 'Network error while submitting grade: ' + (error as Error).message);
               }
             }}
           >

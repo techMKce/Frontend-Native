@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system';
 import { Calendar, Upload, X, Download, Eye } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import api from '@/service/api';
 
 // Define the Assignment interface inline
 interface Assignment {
