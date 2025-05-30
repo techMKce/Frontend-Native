@@ -1,56 +1,41 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, FlatList, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  FlatList,
+  ActivityIndicator,
+} from 'react-native';
 import { COLORS, FONT, SIZES, SPACING } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import CourseCard, { Course } from '@/components/student/CourseCard';
 import { Search } from 'lucide-react-native';
 
-// Mock course data
-const mockCourses: Course[] = [
+let mockCourses: Course[] = [
   {
     id: '1',
     name: 'Introduction to Computer Science',
-    description: 'A foundational course covering the basics of computer science, algorithms, and programming concepts.',
+    description:
+      'A foundational course covering the basics of computer science, algorithms, and programming concepts.',
     faculty: 'Dr. John Smith',
     credits: 4,
     duration: '16 weeks',
     image: 'https://images.pexels.com/photos/2582937/pexels-photo-2582937.jpeg',
-  },
-  {
-    id: '2',
-    name: 'Advanced Database Systems',
-    description: 'This course covers advanced topics in database design, query optimization, and distributed databases.',
-    faculty: 'Dr. Lisa Johnson',
-    credits: 3,
-    duration: '12 weeks',
-    image: 'https://images.pexels.com/photos/5496463/pexels-photo-5496463.jpeg',
-  },
-  {
-    id: '3',
-    name: 'Artificial Intelligence',
-    description: 'An introduction to artificial intelligence concepts, machine learning algorithms, and neural networks.',
-    faculty: 'Prof. Michael Lee',
-    credits: 4,
-    duration: '16 weeks',
-    image: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg',
-  },
-  {
-    id: '4',
-    name: 'Web Development',
-    description: 'Learn modern web development techniques, frameworks, and best practices for building responsive web applications.',
-    faculty: 'Dr. Sarah Williams',
-    credits: 3,
-    duration: '12 weeks',
-    image: 'https://images.pexels.com/photos/270348/pexels-photo-270348.jpeg',
-  },
-  {
-    id: '5',
-    name: 'Data Structures and Algorithms',
-    description: 'A comprehensive study of data structures, algorithms, and their analysis for efficient problem-solving.',
-    faculty: 'Prof. Robert Chen',
-    credits: 4,
-    duration: '16 weeks',
-    image: 'https://images.pexels.com/photos/7095/people-coffee-notes-tea.jpg',
+    sections: [
+      {
+        title: 'Course Overview',
+        description:
+          'Get a comprehensive introduction to the world of computer science. Learn fundamental concepts and build a strong foundation for future studies.',
+      },
+      {
+        title: 'What You Will Learn',
+        description:
+          'Understand algorithms, data structures, and programming paradigms. Develop problem-solving skills and learn to design efficient solutions.',
+      },
+        ],
   },
 ];
 
@@ -58,30 +43,36 @@ export default function AvailableCoursesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [enrollingCourseId, setEnrollingCourseId] = useState<string | null>(null);
+  const [enrolledCourses, setEnrolledCourses] = useState<string[]>([]); // course ids
+  const [getAxiosValue, setAxiosValue] = useState<Course[]>([])
 
-  // Filter courses based on search query
-  const filteredCourses = mockCourses.filter(
-    (course) =>
-      course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.faculty.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
+  useEffect(() => {
+    axios.get('https://6835376fcd78db2058c098e8.mockapi.io/api/course')
+      .then(res => {
+        setAxiosValue(res.data);
+      })
+      .catch(err => {
+        console.log(err);
+      });
+  }, []); 
+  mockCourses = mockCourses.map(({ sections, ...rest }) => rest);
   const handleEnroll = (courseId: string) => {
     setEnrollingCourseId(courseId);
-    
-    // Simulate API call
     setTimeout(() => {
-      // In a real app, this would update the backend
+      setEnrolledCourses((prev) => [...prev, courseId]);
       setEnrollingCourseId(null);
-      // Show success message or update UI
     }, 1000);
   };
+  const filteredCourses = mockCourses.filter(
+    (course) =>course
+      // course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      // course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      // course.faculty.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <View style={styles.container}>
       <Header title="Available Courses" />
-      
       <View style={styles.content}>
         <View style={styles.searchContainer}>
           <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
@@ -105,10 +96,10 @@ export default function AvailableCoursesScreen() {
             data={filteredCourses}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <CourseCard 
-                course={item} 
-                showEnrollButton={true}
-                onEnroll={handleEnroll}
+              <CourseCard
+                course={{ ...item, enrolled: enrolledCourses.includes(item.id) }}
+                showEnrollButton={!enrolledCourses.includes(item.id)}
+                onEnroll={() => handleEnroll(item.id)}
               />
             )}
             contentContainerStyle={styles.coursesList}
@@ -148,7 +139,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   coursesList: {
-    paddingBottom: 100, // Extra space for the tab bar
+    paddingBottom: 100,
   },
   loader: {
     marginTop: SPACING.xl,

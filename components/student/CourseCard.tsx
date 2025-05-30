@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import { useRouter } from 'expo-router';
 import { User, Clock, FileText } from 'lucide-react-native';
+import { Link } from 'expo-router';
 
 export interface Course {
   id: string;
@@ -13,24 +14,29 @@ export interface Course {
   duration?: string;
   image?: string;
   enrolled?: boolean;
+  sections?: any[];
 }
 
 interface CourseCardProps {
   course: Course;
   showEnrollButton?: boolean;
+  showDropButton?: boolean;
   onEnroll?: (courseId: string) => void;
+  onDrop?: (courseId: string) => void;
 }
 
 const CourseCard: React.FC<CourseCardProps> = ({
   course,
   showEnrollButton = false,
+  showDropButton = false,
   onEnroll,
+  onDrop,
 }) => {
-  const router = useRouter();
+  // const router = useRouter();
 
-  const handleViewCourse = () => {
-    router.push(`/course/${course.id}`);
-  };
+  // const handleViewCourse = () => {
+  //   router.push(`/course/${course.id}`);
+  // };
 
   return (
     <View style={styles.card}>
@@ -71,11 +77,15 @@ const CourseCard: React.FC<CourseCardProps> = ({
         </View>
         
         <View style={styles.buttonContainer}>
-          <TouchableOpacity 
-            style={styles.viewButton}
-            onPress={handleViewCourse}
-          >
-            <Text style={styles.viewButtonText}>View</Text>
+          <TouchableOpacity style={styles.viewButton} >
+            <Link href={{
+              pathname: '/(student)/display-courses',
+              params: { course: JSON.stringify(course) },
+            }} asChild>
+            <Text style={styles.viewButtonText}>
+              View
+            </Text>
+            </Link>
           </TouchableOpacity>
           
           {showEnrollButton && !course.enrolled && (
@@ -87,7 +97,16 @@ const CourseCard: React.FC<CourseCardProps> = ({
             </TouchableOpacity>
           )}
           
-          {course.enrolled && (
+          {showDropButton && course.enrolled && (
+            <TouchableOpacity 
+              style={styles.dropButton}
+              onPress={() => onDrop && onDrop(course.id)}
+            >
+              <Text style={styles.dropButtonText}>Drop Course</Text>
+            </TouchableOpacity>
+          )}
+          
+          {course.enrolled && !showDropButton && (
             <View style={styles.enrolledBadge}>
               <Text style={styles.enrolledText}>Enrolled</Text>
             </View>
@@ -170,6 +189,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: SPACING.md,
   },
   enrollButtonText: {
+    fontFamily: FONT.medium,
+    fontSize: SIZES.sm,
+    color: COLORS.white,
+  },
+  dropButton: {
+    backgroundColor: COLORS.error,
+    borderRadius: 6,
+    paddingVertical: SPACING.xs,
+    paddingHorizontal: SPACING.md,
+  },
+  dropButtonText: {
     fontFamily: FONT.medium,
     fontSize: SIZES.sm,
     color: COLORS.white,

@@ -16,6 +16,9 @@
       "output": "single",
       "favicon": "./assets/images/favicon.png"
     },
+    "android": {
+  "permissions": ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"]
+},
     "plugins": ["expo-router", "expo-font", "expo-web-browser"],
     "experiments": {
       "typedRoutes": true
