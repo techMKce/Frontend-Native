@@ -1,12 +1,12 @@
-
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Platform, Alert } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { Calendar, Upload, X, Download, Eye } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 
 // Define the Assignment interface inline
 interface Assignment {
@@ -40,6 +40,7 @@ export default function SubmitAssignmentScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const { id } = useLocalSearchParams(); // Get the assignmentId from route params
+  const assignmentId = id as string;
   const BASE_URL = 'https://assignmentservice-2a8o.onrender.com/api';
 
   // Hardcoded student details (replace with actual user context if available)
@@ -49,7 +50,7 @@ export default function SubmitAssignmentScreen() {
   // Fetch assignment details and submission status
   useEffect(() => {
     const fetchAssignmentAndSubmission = async () => {
-      if (!id) {
+      if (!assignmentId) {
         setError('Assignment ID is missing');
         setLoading(false);
         return;
@@ -59,10 +60,12 @@ export default function SubmitAssignmentScreen() {
         setLoading(true);
 
         // Fetch assignment details
-        const assignmentResponse = await fetch(`${BASE_URL}/assignments/id?assignmentId=${id}`, {
+        const assignmentResponse = await fetch(`${BASE_URL}/assignments/id?assignmentId=${assignmentId}`, {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            // Add authentication headers if needed, e.g.:
+            // Authorization: `Bearer ${yourToken}`,
           },
         });
 
@@ -75,11 +78,12 @@ export default function SubmitAssignmentScreen() {
 
         // Fetch submission details for this assignment and student
         const submissionResponse = await fetch(
-          `${BASE_URL}/submissions?assignmentId=${id}`,
+          `${BASE_URL}/submissions?assignmentId=${assignmentId}`,
           {
             method: 'GET',
             headers: {
               'Content-Type': 'application/json',
+              // Add authentication headers if needed
             },
           }
         );
@@ -105,7 +109,7 @@ export default function SubmitAssignmentScreen() {
     };
 
     fetchAssignmentAndSubmission();
-  }, [id]);
+  }, [assignmentId]);
 
   const handlePick = async () => {
     try {
@@ -119,106 +123,108 @@ export default function SubmitAssignmentScreen() {
     }
   };
 
-const handleSubmit = async () => {
-  if (!selectedFile || !id) return;
+  const handleSubmit = async () => {
+    if (!selectedFile || !assignmentId) return;
 
-  try {
-    const formData = new FormData();
-    formData.append('assignmentId', id as string);
-    formData.append('studentName', studentName);
-    formData.append('studentRollNumber', studentRollNumber);
-    formData.append('file', {
-      uri: selectedFile.uri,
-      name: selectedFile.name,
-      type: selectedFile.mimeType || 'application/octet-stream',
-    } as any);
+    try {
+      const formData = new FormData();
+      formData.append('assignmentId', assignmentId);
+      formData.append('studentName', studentName);
+      formData.append('studentRollNumber', studentRollNumber);
+      formData.append('file', {
+        uri: selectedFile.uri,
+        name: selectedFile.name,
+        type: selectedFile.mimeType || 'application/octet-stream',
+      } as any);
 
-    const response = await fetch(`${BASE_URL}/submissions`, {
-      method: 'POST',
-      body: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+      const response = await fetch(`${BASE_URL}/submissions`, {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          // Add authentication headers if needed
+        },
+      });
 
-    if (!response.ok) {
-      throw new Error('Failed to submit assignment');
+      if (!response.ok) {
+        throw new Error('Failed to submit assignment');
+      }
+
+      const data = await response.json();
+      setIsSubmitted(true);
+      setSubmission({
+        id: data.submissionId,
+        assignmentId,
+        studentName,
+        studentRollNumber,
+        fileId: data.submissionId,
+        submittedAt: new Date().toISOString(),
+      });
+      setSelectedFile(null);
+
+      // Redirect to StudentAssignmentsScreen
+      router.replace('/assignments');
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while submitting the assignment');
     }
+  };
 
-    const data = await response.json();
-    setIsSubmitted(true);
-    setSubmission({
-      id: data.submissionId,
-      assignmentId: id as string,
-      studentName,
-      studentRollNumber,
-      fileId: data.submissionId,
-      submittedAt: new Date().toISOString(),
-    });
-    setSelectedFile(null);
+  const handleEditSubmission = async () => {
+    if (!selectedFile || !assignmentId || !submission?.id) return;
 
-    // Redirect to StudentAssignmentsScreen
-    router.replace('/assignments'); // Use replace to avoid adding to the navigation stack
-  } catch (err: any) {
-    setError(err.message || 'An error occurred while submitting the assignment');
-  }
-};
+    try {
+      const formData = new FormData();
+      formData.append('submissionId', submission.id);
+      formData.append('assignmentId', assignmentId);
+      formData.append('studentName', studentName);
+      formData.append('studentRollNumber', studentRollNumber);
+      formData.append('file', {
+        uri: selectedFile.uri,
+        name: selectedFile.name,
+        type: selectedFile.mimeType || 'application/octet-stream',
+      } as any);
 
-const handleEditSubmission = async () => {
-  if (!selectedFile || !id || !submission?.id) return;
+      const response = await fetch(`${BASE_URL}/submissions`, {
+        method: 'PUT',
+        body: formData,
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          // Add authentication headers if needed
+        },
+      });
 
-  try {
-    const formData = new FormData();
-    formData.append('submissionId', submission.id);
-    formData.append('assignmentId', id as string);
-    formData.append('studentName', studentName);
-    formData.append('studentRollNumber', studentRollNumber);
-    formData.append('file', {
-      uri: selectedFile.uri,
-      name: selectedFile.name,
-      type: selectedFile.mimeType || 'application/octet-stream',
-    } as any);
+      if (!response.ok) {
+        throw new Error('Failed to edit submission');
+      }
 
-    const response = await fetch(`${BASE_URL}/submissions`, {
-      method: 'PUT',
-      body: formData,
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+      const data = await response.json();
+      setIsSubmitted(true);
+      setSubmission({
+        ...submission,
+        fileId: data.submissionId,
+        submittedAt: new Date().toISOString(),
+      });
+      setSelectedFile(null);
 
-    if (!response.ok) {
-      throw new Error('Failed to edit submission');
+      // Redirect to StudentAssignmentsScreen
+      router.replace('/assignments');
+    } catch (err: any) {
+      setError(err.message || 'An error occurred while editing the submission');
     }
-
-    const data = await response.json();
-    setIsSubmitted(true);
-    setSubmission({
-      ...submission,
-      fileId: data.submissionId,
-      submittedAt: new Date().toISOString(),
-    });
-    setSelectedFile(null);
-
-    // Redirect to StudentAssignmentsScreen
-    router.replace('/assignments'); // Use replace to avoid adding to the navigation stack
-  } catch (err: any) {
-    setError(err.message || 'An error occurred while editing the submission');
-  }
-};
-
+  };
 
   const handleUnsubmit = async () => {
-    if (!submission || !id) return;
+    if (!submission || !assignmentId) return;
 
     try {
       const response = await fetch(`${BASE_URL}/submissions`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
+          // Add authentication headers if needed
         },
         body: JSON.stringify({
-          assignmentId: id,
+          assignmentId,
           studentRollNumber,
         }),
       });
@@ -236,43 +242,49 @@ const handleEditSubmission = async () => {
   };
 
   const handleDownloadFacultyFile = async () => {
-    if (!assignment?.fileNo) return;
+    if (!assignment?.fileNo) {
+      setError('No faculty file available for download');
+      return;
+    }
+
+    const url = `${BASE_URL}/assignments/download?assignmentId=${assignmentId}`;
+    const fileName = `faculty_file_${assignment.fileNo}.pdf`;
 
     try {
-      const response = await fetch(
-        `${BASE_URL}/assignments/download?fileId=${assignment.fileNo}`,
-        {
-          method: 'GET',
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to download faculty file');
-      }
-
-      const data = await response.blob();
-      const fileName = response.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'faculty_file.pdf';
-
       if (Platform.OS === 'web') {
-        const url = window.URL.createObjectURL(data);
+        // For web, fetch the file and trigger a download
+        const response = await fetch(url, {
+          headers: {
+            // Add authentication headers if needed, e.g.:
+            // Authorization: `Bearer ${yourToken}`,
+          },
+        });
+        if (!response.ok) throw new Error('Failed to download faculty file');
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url;
+        link.href = blobUrl;
         link.setAttribute('download', fileName);
         document.body.appendChild(link);
         link.click();
-        link.remove();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
       } else {
+        // For mobile, save to file system and open
         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('Failed to read response body');
-
-        await FileSystem.writeAsStringAsync(fileUri, '', { encoding: FileSystem.EncodingType.Base64 });
-        const result = await reader.read();
-        if (!result.done) {
-          await FileSystem.writeAsStringAsync(fileUri, Buffer.from(result.value).toString('base64'), {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          Linking.openURL(fileUri);
+        const response = await FileSystem.downloadAsync(url, fileUri, {
+          headers: {
+            // Add authentication headers if needed
+          },
+        });
+        if (response.status !== 200) {
+          throw new Error('Failed to download faculty file');
+        }
+        const supported = await Linking.canOpenURL(response.uri);
+        if (supported) {
+          await Linking.openURL(response.uri);
+        } else {
+          Alert.alert('Success', `File downloaded to ${response.uri}, but no viewer is available`);
         }
       }
     } catch (err: any) {
@@ -281,88 +293,63 @@ const handleEditSubmission = async () => {
   };
 
   const handleViewFacultyFile = async () => {
-    if (!assignment?.fileNo) return;
+    if (!assignment?.fileNo) {
+      setError('No faculty file available to view');
+      return;
+    }
 
+    const url = `${BASE_URL}/assignments/download?assignmentId=${assignmentId}`;
     try {
-      const response = await fetch(
-        `${BASE_URL}/assignments/download?fileId=${assignment.fileNo}`,
-        {
-          method: 'GET',
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to view faculty file');
-      }
-
-      const data = await response.blob();
-      const fileName = response.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'faculty_file.pdf';
-
-      if (Platform.OS === 'web') {
-        const url = window.URL.createObjectURL(data);
-        window.open(url, '_blank');
-      } else {
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('Failed to read response body');
-
-        await FileSystem.writeAsStringAsync(fileUri, '', { encoding: FileSystem.EncodingType.Base64 });
-        const result = await reader.read();
-        if (!result.done) {
-          await FileSystem.writeAsStringAsync(fileUri, Buffer.from(result.value).toString('base64'), {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          const supported = await Linking.canOpenURL(fileUri);
-          if (supported) {
-            await Linking.openURL(fileUri);
-          } else {
-            setError('Cannot open file: No viewer available');
-          }
-        }
-      }
+      // Option 1: Open in external browser
+      await WebBrowser.openBrowserAsync(url);
+      // Option 2: Navigate to in-app PDFPreview screen (uncomment if using WebView)
+      // router.push({ pathname: '/PDFPreview', params: { url } });
     } catch (err: any) {
       setError(err.message || 'An error occurred while viewing the faculty file');
     }
   };
 
   const handleDownloadSubmittedFile = async () => {
-    if (!submission?.id) return;
+    if (!submission?.id) {
+      setError('No submitted file available for download');
+      return;
+    }
+
+    const url = `${BASE_URL}/submissions/download?submissionId=${submission.id}`;
+    const fileName = `submitted_file_${submission.id}.pdf`;
 
     try {
-      const response = await fetch(
-        `${BASE_URL}/submissions/download?submissionId=${submission.id}`,
-        {
-          method: 'GET',
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to download submitted file');
-      }
-
-      const data = await response.blob();
-      const fileName = response.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] || 'submitted_file.pdf';
-
       if (Platform.OS === 'web') {
-        const url = window.URL.createObjectURL(data);
+        const response = await fetch(url, {
+          headers: {
+            // Add authentication headers if needed
+          },
+        });
+        if (!response.ok) throw new Error('Failed to download submitted file');
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
-        link.href = url;
+        link.href = blobUrl;
         link.setAttribute('download', fileName);
         document.body.appendChild(link);
         link.click();
-        link.remove();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
       } else {
         const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error('Failed to read response body');
-
-        await FileSystem.writeAsStringAsync(fileUri, '', { encoding: FileSystem.EncodingType.Base64 });
-        const result = await reader.read();
-        if (!result.done) {
-          await FileSystem.writeAsStringAsync(fileUri, Buffer.from(result.value).toString('base64'), {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          Linking.openURL(fileUri);
+        const response = await FileSystem.downloadAsync(url, fileUri, {
+          headers: {
+            // Add authentication headers if needed
+          },
+        });
+        if (response.status !== 200) {
+          throw new Error('Failed to download submitted file');
+        }
+        const supported = await Linking.canOpenURL(response.uri);
+        if (supported) {
+          await Linking.openURL(response.uri);
+        } else {
+          Alert.alert('Success', `File downloaded to ${response.uri}, but no viewer is available`);
         }
       }
     } catch (err: any) {
@@ -412,22 +399,22 @@ const handleEditSubmission = async () => {
           <Text style={styles.description}>{assignment.description || 'No description provided'}</Text>
 
           {assignment.fileNo && (
-                                <View style={styles.facultyFileContainer}>
-                                  <View style={styles.fileRow}>
-                                    <Text style={styles.metaInfo}>
-                                      {assignment.fileNo}
-                                    </Text>
-                                    <View style={styles.fileActions}>
-                                      <TouchableOpacity style={styles.iconButton} onPress={handleViewFacultyFile}>
-                                        <Eye size={18} color={COLORS.primary} />
-                                      </TouchableOpacity>
-                                      <TouchableOpacity style={styles.iconButton} onPress={handleDownloadFacultyFile}>
-                                        <Download size={18} color={COLORS.primary} />
-                                      </TouchableOpacity>
-                                    </View>
-                                  </View>
-                                </View>
-                              )}
+            <View style={styles.facultyFileContainer}>
+              <View style={styles.fileRow}>
+                <Text style={styles.metaInfo}>
+                  {assignment.fileNo}
+                </Text>
+                <View style={styles.fileActions}>
+                  <TouchableOpacity style={styles.iconButton} onPress={handleViewFacultyFile}>
+                    <Download size={18} color={COLORS.primary} />
+                  </TouchableOpacity>
+                  {/* <TouchableOpacity style={styles.iconButton} onPress={handleDownloadFacultyFile}>
+                    <Download size={18} color={COLORS.primary} />
+                  </TouchableOpacity> */}
+                </View>
+              </View>
+            </View>
+          )}
         </View>
 
         {/* Submission Card */}
@@ -505,7 +492,6 @@ const handleEditSubmission = async () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, padding: SPACING.md },
-
   detailsCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -556,16 +542,15 @@ const styles = StyleSheet.create({
   },
   metaInfo: {
     fontFamily: FONT.medium,
-    fontSize: SIZES.sm, // Reduced font size for better fit
+    fontSize: SIZES.sm,
     color: COLORS.darkGray,
-    flex: 1, // Allow the text to take available space
-    marginRight: SPACING.xs, // Add margin to separate from buttons
+    flex: 1,
+    marginRight: SPACING.xs,
   },
   fileActions: {
     flexDirection: 'row',
     gap: SPACING.sm,
   },
-
   submissionCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
