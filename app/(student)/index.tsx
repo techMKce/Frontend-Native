@@ -79,76 +79,97 @@ export default function StudentDashboard() {
   const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
 
   useEffect(() => {
-    const fetchAttendanceData = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get('/getstudent', {
-          params: {
-            id:user?.id,
-          },
-        });
+  const fetchAttendanceData = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/getstudent', {
+        params: {
+          id: 'l301',
+        },
+      });
 
-        const apiData = response.data as AttendanceSessionData[];
+      const apiData = response.data as AttendanceSessionData[];
 
-        // Transform the API response
-        const transformedData: AttendanceData = {
-          forenoon: apiData.find(item => item.session === 'forenoon'),
-          afternoon: apiData.find(item => item.session === 'afternoon'),
-          overallPercentage: apiData[0]?.percentage // Using first item's percentage as overall
+      // Initialize all 8 semesters with zero values
+      const initialSemesterData: Record<number, {
+        percentage: number;
+        FN: { conducted: number; present: number };
+        AN: { conducted: number; present: number };
+      }> = {};
+      
+      for (let i = 1; i <= 8; i++) {
+        initialSemesterData[i] = {
+          percentage: 0,
+          FN: { present: 0, conducted: 0 },
+          AN: { present: 0, conducted: 0 }
         };
-
-        setAttendanceData({
-          percentage: transformedData.overallPercentage || 0,
-          presentsession: (transformedData.forenoon?.presentcount || 0) +
-            (transformedData.afternoon?.presentcount || 0),
-          totalsession: (transformedData.forenoon?.totaldays || 0) +
-            (transformedData.afternoon?.totaldays || 0),
-          afternoon: transformedData.afternoon?.presentcount || 0,
-          forenoon: transformedData.forenoon?.presentcount || 0,
-        });
-
-        // Group by semester
-        const semesterData: Record<number, {
-          percentage: number;
-          FN: { conducted: number; present: number };
-          AN: { conducted: number; present: number };
-        }> = {};
-
-        apiData.forEach(item => {
-          if (!semesterData[item.sem]) {
-            semesterData[item.sem] = {
-              percentage: item.percentage,
-              FN: { present: 0, conducted: 0 },
-              AN: { present: 0, conducted: 0 }
-            };
-          }
-
-          if (item.session === 'forenoon') {
-            semesterData[item.sem].FN = {
-              present: item.presentcount,
-              conducted: item.totaldays
-            };
-          } else if (item.session === 'afternoon') {
-            semesterData[item.sem].AN = {
-              present: item.presentcount,
-              conducted: item.totaldays
-            };
-          }
-        });
-
-        setSemesterAttendanceDetails(semesterData);
-      } catch (err) {
-        setError('Failed to fetch attendance data');
-        console.error('Error fetching attendance:', err);
-      } finally {
-        setLoading(false);
       }
-    };
 
-    if (user?.id) {
-      fetchAttendanceData();
+      // Fill in data from API
+      apiData.forEach(item => {
+        if (!initialSemesterData[item.sem]) {
+          initialSemesterData[item.sem] = {
+            percentage: 0,
+            FN: { present: 0, conducted: 0 },
+            AN: { present: 0, conducted: 0 }
+          };
+        }
+
+        if (item.session === 'forenoon') {
+          initialSemesterData[item.sem].FN = {
+            present: item.presentcount,
+            conducted: item.totaldays
+          };
+        } else if (item.session === 'afternoon') {
+          initialSemesterData[item.sem].AN = {
+            present: item.presentcount,
+            conducted: item.totaldays
+          };
+        }
+
+        // Calculate percentage for each semester
+        const totalPresent = initialSemesterData[item.sem].FN.present + initialSemesterData[item.sem].AN.present;
+        const totalConducted = initialSemesterData[item.sem].FN.conducted + initialSemesterData[item.sem].AN.conducted;
+        initialSemesterData[item.sem].percentage = totalConducted > 0 
+          ? (totalPresent / totalConducted) * 100 
+          : 0;
+      });
+
+      setSemesterAttendanceDetails(initialSemesterData);
+
+      // Calculate overall attendance across all semesters
+      let totalPresent = 0;
+      let totalConducted = 0;
+      
+      Object.values(initialSemesterData).forEach(semester => {
+        totalPresent += semester.FN.present + semester.AN.present;
+        totalConducted += semester.FN.conducted + semester.AN.conducted;
+      });
+
+      const overallPercentage = totalConducted > 0 
+        ? (totalPresent / totalConducted) * 100 
+        : 0;
+
+      setAttendanceData({
+        percentage: overallPercentage,
+        presentsession: totalPresent,
+        totalsession: totalConducted,
+        afternoon: 0, // These will be calculated per semester
+        forenoon: 0   // These will be calculated per semester
+      });
+
+    } catch (err) {
+      setError('Failed to fetch attendance data');
+      console.error('Error fetching attendance:', err);
+    } finally {
+      setLoading(false);
     }
-  }, [user]);
+  };
+
+  if (user?.id) {
+    fetchAttendanceData();
+  }
+}, [user]);
 
   if (loading) {
     return (
@@ -207,9 +228,7 @@ export default function StudentDashboard() {
                 {attendanceData?.percentage?.toFixed(1) || 0}%
               </Text>
               <Text style={styles.statLabel}>Attendance</Text>
-              <Text style={styles.statLabel}>
-                Click to view details
-              </Text>
+              <Text style={styles.statLabel}>Click to view details</Text>
             </View>
           </TouchableOpacity>
 
@@ -296,7 +315,10 @@ export default function StudentDashboard() {
               Download your{' '}
               <Text style={styles.examHighlight}>Exam Timetable</Text>
             </Text>
-            <TouchableOpacity style={styles.viewTimetableButton} onPress={() => router.push('/exam-timetable')}>
+            <TouchableOpacity
+              style={styles.viewTimetableButton}
+              onPress={() => router.push('/exam-timetable')}
+            >
               <Text style={styles.viewTimetableText}>View Full Timetable</Text>
             </TouchableOpacity>
           </View>
@@ -314,8 +336,7 @@ export default function StudentDashboard() {
 
             {/* Semester buttons */}
             <View style={styles.semesterGrid}>
-              {Object.keys(semesterAttendanceDetails).map((sem) => {
-                const semester = parseInt(sem);
+              {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => {
                 const selected = selectedSemester === semester;
                 return (
                   <TouchableOpacity
@@ -343,15 +364,23 @@ export default function StudentDashboard() {
             {selectedSemester && (
               <View style={styles.attendanceDetail}>
                 <Text style={styles.attendanceDetailText}>
-                  Overall Attendance: {semesterAttendanceDetails[selectedSemester].percentage.toFixed(1)}%
+                  Overall Attendance:{' '}
+                  {semesterAttendanceDetails[
+                    selectedSemester
+                  ].percentage.toFixed(1)}
+                  %
                 </Text>
                 <Text style={styles.attendanceDetailText}>
-                  FN — Present: {semesterAttendanceDetails[selectedSemester].FN.present} /
-                  {semesterAttendanceDetails[selectedSemester].FN.conducted} days
+                  FN — Present:{' '}
+                  {semesterAttendanceDetails[selectedSemester].FN.present} /
+                  {semesterAttendanceDetails[selectedSemester].FN.conducted}{' '}
+                  days
                 </Text>
                 <Text style={styles.attendanceDetailText}>
-                  AN — Present: {semesterAttendanceDetails[selectedSemester].AN.present} /
-                  {semesterAttendanceDetails[selectedSemester].AN.conducted} days
+                  AN — Present:{' '}
+                  {semesterAttendanceDetails[selectedSemester].AN.present} /
+                  {semesterAttendanceDetails[selectedSemester].AN.conducted}{' '}
+                  days
                 </Text>
               </View>
             )}

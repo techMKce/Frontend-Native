@@ -1,18 +1,19 @@
 // api.ts
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api',
+  baseURL: 'http://192.168.0.245:8084/api', // use actual IP for device testing
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
 });
 
-// Attach token from localStorage
+// Attach token from AsyncStorage
 api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token');
+  async (config) => {
+    const token = await AsyncStorage.getItem('token');
     if (token) {
       config.headers['x-auth-token'] = token;
     }
@@ -24,10 +25,11 @@ api.interceptors.request.use(
 // Handle 401 unauthorized
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      window.location.href = '/'; // Or navigation logic if React Native
+      await AsyncStorage.removeItem('token');
+      // Optionally, you can use a navigation reset here
+      console.warn('Unauthorized: token removed');
     }
     return Promise.reject(error);
   }

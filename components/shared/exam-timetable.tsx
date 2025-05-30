@@ -30,7 +30,13 @@ const ExamTimetableScreen = () => {
       try {
         setLoading(true);
         const response = await api.get('/examsnative');
-        setTimetable(response.data); // Adjust if the data is nested
+        const transformedData: TimetableItem[] = response.data.map((item: any, index: number) => ({
+          id: `${index}`, // Create a unique ID using index
+          date: item.date,
+          course: item.courseName, // Map 'courseName' to 'course'
+          session: item.session,
+        }));
+        setTimetable(transformedData);
       } catch (error) {
         console.error('Failed to fetch exam timetable:', error);
         Alert.alert('Error', 'Could not load timetable');
@@ -95,14 +101,14 @@ const ExamTimetableScreen = () => {
       await FileSystem.moveAsync({
         from: uri,
         to: newPath,
-      });
+      });
 
       if (!(await Sharing.isAvailableAsync())) {
         Alert.alert('Error', 'Sharing is not available on this device');
         return;
       }
 
-      await Sharing.shareAsync(uri);
+      await Sharing.shareAsync(newPath); // Share the moved file
     } catch (err) {
       Alert.alert('Error', 'PDF generation failed');
       console.error(err);
