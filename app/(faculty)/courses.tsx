@@ -3,24 +3,30 @@ import {
   View,
   Text,
   TextInput,
-  Button,
   FlatList,
   Modal,
-  StyleSheet,
   Pressable,
+  StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import api from '@/service/api';
+import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker'; // <-- Import Picker
+import api from '@/service/api'; // Your configured Axios instance
+import { COLORS, SPACING, FONT, SIZES, SHADOWS } from '@/constants/theme';
+import { useRouter } from 'expo-router';
 
 type Course = {
-  id: string;
-  name: string;
-  description: string;
+  course_id: string;
+  courseTitle: string;
+  courseDescription: string;
   duration: string;
-  instructor: string;
-  category: string;
-  credits: string;
-  students?: number;
+  instructorName: string;
+  dept: string;
+  credit: string;
+  students: number;
+  imgurl: string;
+  status: 'Active' | 'Inactive';
 };
 
 const Courses = () => {
@@ -32,23 +38,22 @@ const Courses = () => {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [newCourse, setNewCourse] = useState<Course>({
-    id: '',
-    name: '',
-    description: '',
+    course_id: '',
+    courseTitle: '',
+    courseDescription: '',
     duration: '',
-    instructor: '',
-    category: '',
-    credits: '',
+    instructorName: '',
+    dept: '',
+    credit: '',
     students: 0,
+    imgurl: '',
+    status: 'Active',
   });
-
-  useEffect(() => {
-    fetchCourses();
-  }, []);
 
   const fetchCourses = async () => {
     try {
-      const response = await api.get('course/details');
+      setLoading(true);
+      const response = await api.get('/course/details'); // Backend endpoint
       setCourses(response.data);
       setFilteredCourses(response.data);
     } catch (error) {
@@ -58,63 +63,65 @@ const Courses = () => {
     }
   };
 
-  const handleSearch = async (text: string) => {
-    setSearch(text);
-    if (!text) {
-      setFilteredCourses(courses);
-      return;
-    }
-    try {
-      const response = await api.get(`/courses/filtercourse?courseTitle=${text}`);
-      setFilteredCourses(response.data);
-    } catch (error) {
-      console.error('Search failed:', error);
-    }
-  };
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
 
   const openModal = () => {
     setIsEditing(false);
     setNewCourse({
-      id: '',
-      name: '',
-      description: '',
+      course_id: '',
+      courseTitle: '',
+      courseDescription: '',
       duration: '',
-      instructor: '',
-      category: '',
-      credits: '',
+      instructorName: '',
+      dept: '',
+      credit: '',
       students: 0,
+      imgurl: '',
+      status: 'Active',
     });
     setIsModalVisible(true);
   };
 
-  const handleAddOrEditCourse = async () => {
-  const preparedCourse = {
-    ...newCourse,
-    credits: Number(newCourse.credits || 0),
-    duration: Number(newCourse.duration || 0),
-    students: newCourse.students || 0,
+  const handleSearch = (text: string) => {
+    setSearch(text);
+    const filtered = courses.filter(course =>
+      course.courseTitle.toLowerCase().includes(text.toLowerCase())
+    );
+    setFilteredCourses(filtered);
   };
 
-  try {
-    if (isEditing) {
-      await api.put('/course/update', preparedCourse);
-    } else {
-      await api.post('/courses', preparedCourse);
-    }
+  const handleAddOrEditCourse = async () => {
+    const preparedCourse = {
+      ...newCourse,
+      credit: Number(newCourse.credit || 0),
+      duration: Number(newCourse.duration || 0),
+      students: newCourse.students || 0,
+    };
 
-    await fetchCourses();
-
+    try {
+      if (isEditing) {
+        await api.put('/course/update', preparedCourse);
+      } else {
+        await api.post('/course/add', preparedCourse);
+      }
+      await fetchCourses();
       setIsModalVisible(false);
       setIsEditing(false);
       setNewCourse({
-        id: '',
-        name: '',
-        description: '',
+        course_id: '',
+        courseTitle: '',
+        courseDescription: '',
         duration: '',
-        instructor: '',
-        category: '',
-        credits: '',
+        instructorName: '',
+        dept: '',
+        credit: '',
         students: 0,
+        imgurl: '',
+        status: 'Active',
       });
     } catch (error) {
       console.error('Failed to save course:', error);
@@ -127,103 +134,133 @@ const Courses = () => {
     setNewCourse(course);
   };
 
+  const fetchActiveCourses = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/course/active'); // Active courses endpoint
+      setCourses(response.data);
+      setFilteredCourses(response.data);
+    } catch (error) {
+      console.error('Failed to fetch active courses:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActiveCourses();
+  }, []);
+
   const handleDelete = async (id: string) => {
     try {
-      await api.delete(`course/details?ids=${id}`);
+      await api.delete(`/course/delete?course_id=${id}`);
       fetchCourses();
     } catch (error) {
       console.error('Failed to delete course:', error);
     }
   };
 
+  const disableCourse = async (course_id: string) => {
+    try {
+      await api.put(`/course/disable?course_id=${course_id}`);
+      fetchCourses(); // Refresh the course list after disabling
+    } catch (error) {
+      console.error('Failed to disable course:', error);
+    }
+  };
+
   const renderCourse = ({ item }: { item: Course }) => (
     <View style={styles.courseCard}>
-      <Text style={styles.courseTitle}>{item.name}</Text>
-      <Text>{item.description}</Text>
-      <Text>Instructor: {item.instructor}</Text>
-      <Text>Duration: {item.duration} weeks</Text>
-      <Text>Credits: {item.credits}</Text>
-      <Text>Category: {item.category}</Text>
-      <View style={styles.buttonRow}>
-        <Button title="View" onPress={() => navigation.navigate('CourseDetail', { course: item })} />
-        <Button title="Edit" onPress={() => handleEdit(item)} />
-        <Button title="Delete" color="red" onPress={() => handleDelete(item.id)} />
+      <Text style={styles.courseName}>{item.courseTitle}</Text>
+      <Text style={styles.courseDescription}>{item.courseDescription}</Text>
+      <Text style={styles.courseDescription}>Instructor: {item.instructorName}</Text>
+      <View style={styles.courseStats}>
+        <View style={styles.statItem}>
+          <Ionicons name="time-outline" size={16} color={COLORS.gray} />
+          <Text style={styles.statText}>{item.duration} weeks</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Ionicons name="book-outline" size={16} color={COLORS.gray} />
+          <Text style={styles.statText}>{item.credit} credits</Text>
+        </View>
+      </View>
+      <View style={styles.cardButtons}>
+        <TouchableOpacity onPress={() => router.push('/coursedetails')}>
+          <Text style={{ color: COLORS.primary }}>View</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => handleEdit(item)} style={styles.editButton}>
+          <Text style={{ color: COLORS.primary }}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => handleDelete(item.course_id)}>
+          <Text style={{ color: 'red' }}>Delete</Text>
+        </TouchableOpacity>
       </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <Text style={styles.heading}>Course Management</Text>
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search courses..."
-        value={search}
-        onChangeText={handleSearch}
-      />
-      <Button title="Add New Course" onPress={openModal} />
-      <FlatList
-        data={search ? filteredCourses : courses}
-        renderItem={renderCourse}
-        keyExtractor={(item) => item.id}
-        ListEmptyComponent={<Text style={styles.emptyText}>No courses found.</Text>}
-        refreshing={loading}
-        onRefresh={fetchCourses}
-      />
+      <View style={styles.content}>
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} style={styles.searchIcon} color={COLORS.gray} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search courses..."
+            value={search}
+            onChangeText={handleSearch}
+          />
+          <TouchableOpacity style={styles.addButton} onPress={openModal}>
+            <Ionicons name="add" size={24} color={COLORS.white} />
+          </TouchableOpacity>
+        </View>
 
-      <Modal visible={isModalVisible} animationType="slide" transparent={true}>
-        <View style={styles.modalContainer}>
+        <FlatList
+          data={search ? filteredCourses : courses}
+          renderItem={renderCourse}
+          keyExtractor={(item) => item.course_id}
+          refreshing={loading}
+          onRefresh={fetchCourses}
+          contentContainerStyle={styles.coursesList}
+          ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 20 }}>No courses found.</Text>}
+        />
+      </View>
+
+      <Modal visible={isModalVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>
-              {isEditing ? 'Edit Course' : 'Add New Course'}
-            </Text>
-            <TextInput
+            <Text style={styles.modalTitle}>{isEditing ? 'Edit Course' : 'Add New Course'}</Text>
+
+            {/* Render text inputs for all fields except 'status' */}
+            {['courseTitle', 'courseDescription', 'instructorName', 'dept', 'duration', 'credit', 'imgurl'].map((field) => (
+              <TextInput
+                key={field}
+                style={styles.input}
+                placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+                keyboardType={field === 'duration' || field === 'credit' ? 'numeric' : 'default'}
+                value={newCourse[field as keyof Course]?.toString() || ''}
+                onChangeText={(text) => setNewCourse({ ...newCourse, [field]: text })}
+              />
+            ))}
+
+            {/* Dropdown for status */}
+            <Text style={{ marginBottom: 4, fontFamily: FONT.medium }}>Status</Text>
+            <Picker
+              selectedValue={newCourse.status}
+              onValueChange={(itemValue) => setNewCourse({ ...newCourse, status: itemValue })}
               style={styles.input}
-              placeholder="Name"
-              value={newCourse.name}
-              onChangeText={(text) => setNewCourse({ ...newCourse, name: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Description"
-              value={newCourse.description}
-              onChangeText={(text) => setNewCourse({ ...newCourse, description: text })}
-            />
-            
-            <TextInput
-              style={styles.input}
-              placeholder="Instructor"
-              value={newCourse.instructor}
-              onChangeText={(text) => setNewCourse({ ...newCourse, instructor: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Category"
-              value={newCourse.category}
-              onChangeText={(text) => setNewCourse({ ...newCourse, category: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Duration (weeks)"
-              value={newCourse.duration}
-              keyboardType="numeric"
-              onChangeText={(text) => setNewCourse({ ...newCourse, duration: text })}
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Credits"
-              keyboardType="numeric"
-              value={newCourse.credits}
-              onChangeText={(text) => setNewCourse({ ...newCourse, credits: text })}
-            />
+            >
+              <Picker.Item label="Active" value="Active" />
+              <Picker.Item label="Inactive" value="Inactive" />
+            </Picker>
+
             <View style={styles.modalButtons}>
-              <Pressable style={styles.button} onPress={handleAddOrEditCourse}>
-                <Text style={styles.buttonText}>
+              <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={() => setIsModalVisible(false)}>
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.modalButton, styles.addButtonModal]} onPress={handleAddOrEditCourse}>
+                <Text style={styles.addButtonText}>
                   {isEditing ? 'Update Course' : 'Add Course'}
                 </Text>
-              </Pressable>
-              <Pressable style={[styles.button, styles.cancelButton]} onPress={() => setIsModalVisible(false)}>
-                <Text style={styles.buttonText}>Cancel</Text>
               </Pressable>
             </View>
           </View>
@@ -238,80 +275,139 @@ export default Courses;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 16,
+    backgroundColor: COLORS.background,
   },
-  heading: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 16,
+  content: {
+    flex: 1,
+    padding: SPACING.md,
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.md,
+  },
+  searchIcon: {
+    position: 'absolute',
+    left: SPACING.md,
+    zIndex: 1,
   },
   searchInput: {
-    height: 40,
-    borderColor: '#ccc',
-    borderWidth: 1,
-    paddingHorizontal: 10,
-    marginBottom: 16,
-    borderRadius: 5,
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    paddingVertical: SPACING.sm,
+    paddingLeft: SPACING.xl,
+    paddingRight: SPACING.md,
+    fontFamily: FONT.regular,
+    fontSize: SIZES.md,
+    color: COLORS.darkGray,
+    ...SHADOWS.small,
+  },
+  addButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    padding: SPACING.sm,
+    marginLeft: SPACING.sm,
+    ...SHADOWS.small,
+  },
+  coursesList: {
+    paddingBottom: 100,
   },
   courseCard: {
-    padding: 16,
-    backgroundColor: '#f2f2f2',
-    borderRadius: 8,
-    marginBottom: 12,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    ...SHADOWS.small,
   },
-  courseTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+  courseName: {
+    fontFamily: FONT.bold,
+    fontSize: SIZES.lg,
+    marginBottom: SPACING.xs,
   },
-  buttonRow: {
+  courseDescription: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    color: COLORS.gray,
+    marginBottom: SPACING.sm,
+  },
+  courseStats: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 8,
+    justifyContent: 'flex-start',
+    gap: SPACING.md,
   },
-  emptyText: {
-    textAlign: 'center',
-    marginTop: 32,
-    color: '#888',
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: SPACING.md,
   },
-  modalContainer: {
+  statText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    marginLeft: 4,
+    color: COLORS.gray,
+  },
+  cardButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: SPACING.md,
+  },
+  editButton: {
+    marginHorizontal: SPACING.md,
+  },
+  modalOverlay: {
     flex: 1,
+    backgroundColor: '#00000099',
     justifyContent: 'center',
-    backgroundColor: '#000000aa',
+    padding: SPACING.lg,
   },
   modalContent: {
-    margin: 20,
-    padding: 20,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    elevation: 5,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: SPACING.lg,
   },
   modalTitle: {
-    fontSize: 20,
-    marginBottom: 12,
-    fontWeight: 'bold',
+    fontFamily: FONT.bold,
+    fontSize: SIZES.lg,
+    marginBottom: SPACING.md,
     textAlign: 'center',
   },
   input: {
-    borderBottomWidth: 1,
-    borderColor: '#ccc',
-    marginBottom: 12,
-    padding: 8,
+    height: 48,
+    borderColor: COLORS.gray,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    fontFamily: FONT.regular,
+    fontSize: SIZES.md,
+    color: COLORS.darkGray,
   },
   modalButtons: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 12,
+    justifyContent: 'space-between',
+    marginTop: SPACING.md,
   },
-  button: {
-    backgroundColor: '#007bff',
-    padding: 10,
-    borderRadius: 6,
+  modalButton: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: '#6c757d',
+    backgroundColor: COLORS.gray,
+    marginRight: SPACING.sm,
   },
-  buttonText: {
-    color: '#fff',
-    fontWeight: 'bold',
+  cancelButtonText: {
+    color: COLORS.gray,
+    fontFamily: FONT.medium,
+  },
+  addButtonModal: {
+    backgroundColor: COLORS.primary,
+    marginLeft: SPACING.sm,
+  },
+  addButtonText: {
+    color: COLORS.white,
+    fontFamily: FONT.medium,
   },
 });

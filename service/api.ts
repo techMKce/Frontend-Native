@@ -2,13 +2,13 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const api = axios.create({
-  baseURL: 'http://localhost:8080/api', 
+  baseURL: 'http://10.0.2.2:8080/api', // ✅ for Android emulator
+  // baseURL: 'http://192.168.56.1:8080/api', // ✅ if using physical device
 });
 
-// Add token header using AsyncStorage inside request interceptor
 api.interceptors.request.use(
   async (config) => {
-    const token = await AsyncStorage.getItem('token');  // async token get
+    const token = await AsyncStorage.getItem('token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
