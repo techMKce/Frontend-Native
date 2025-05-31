@@ -1,3 +1,5 @@
+import { green100 } from "react-native-paper/lib/typescript/styles/themes/v2/colors";
+
 export const COLORS = {
   // Primary Colors
   primary: '#1e40af',
@@ -29,6 +31,7 @@ export const COLORS = {
   lightGray: '#d1d5db',
   background: '#f3f4f6',
   white: '#ffffff',
+  green: '#90EE90',
 };
 
 export const FONT = {

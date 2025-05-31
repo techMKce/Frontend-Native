@@ -28,7 +28,9 @@ interface Submission {
   assignmentId: string;
   studentName: string;
   studentRollNumber: string;
-  fileId: string; // Submitted file identifier
+  fileId: string;
+  studentDepartment: string;
+  studentSemester: string; // Submitted file identifier
   submittedAt: string;
 }
 
@@ -47,7 +49,8 @@ export default function SubmitAssignmentScreen() {
   // Hardcoded student details (replace with actual user context if available)
   const studentName = 'John Doe';
   const studentRollNumber = 'STU123';
-
+  const studentDepartment='CSE';
+  const studentSemester='3';
   // Fetch assignment details and submission status
   useEffect(() => {
     const fetchAssignmentAndSubmission = async () => {
@@ -132,6 +135,8 @@ export default function SubmitAssignmentScreen() {
       formData.append('assignmentId', assignmentId);
       formData.append('studentName', studentName);
       formData.append('studentRollNumber', studentRollNumber);
+      formData.append('studentDepartment',studentDepartment);
+      formData.append('studentSemester',studentSemester);
       formData.append('file', {
         uri: selectedFile.uri,
         name: selectedFile.name,
@@ -159,6 +164,8 @@ export default function SubmitAssignmentScreen() {
         studentName,
         studentRollNumber,
         fileId: data.submissionId,
+        studentDepartment:data.studentDepartment,
+        studentSemester:data.studentSemester,
         submittedAt: new Date().toISOString(),
       });
       setSelectedFile(null);
