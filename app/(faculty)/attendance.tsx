@@ -20,19 +20,23 @@ type Student = {
   deptName: string;
   batch: string;
   sem: number;
+  courseId: string;
+  courseName: string;
 };
 
 type Course = {
   courseId: string;
-  courseName: string;
-  description: string;
-  credits: number;
-  semester: string;
-  department: string;
-  studentsCount: number;
+  courseTitle: string;
+  courseDescription: string;
+  instructorName: string;
+  dept: string;
+  duration: number;
+  credit: number;
+  imageUrl: string;
 };
 
 type AttendanceRecord = {
+  id: number;
   stdId: string;
   stdName: string;
   facultyId: string;
@@ -45,13 +49,13 @@ type AttendanceRecord = {
   deptId: string;
   deptName: string;
   sem: number;
-  dates: string; 
+  dates: string;
 };
 
 const AttendanceScreen = () => {
   const { user } = useAuth();
   const [filters, setFilters] = useState({
-    batch: '', course: '', department: '', semester: '', session: 'FN', date: new Date()
+    batch: '', course: '', department: '', semester: '', session: 'forenoon', date: new Date()
   });
   const [showPicker, setShowPicker] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -74,23 +78,30 @@ const AttendanceScreen = () => {
   const fetchFacultyCourses = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/v1/faculty-student-assigning/admin/assign/${user?.id}`);
-      const courseIds = [...new Set(response.data.map((item: any) => item.courseId))] as string[];
-      const courseDetails = await Promise.all(
-        courseIds.map(async (courseId) => {
-          const courseRes = await api.get(`/course/details/${courseId}`);
-          return {
-            courseId: courseRes.data.courseId,
-            courseName: courseRes.data.courseName,
-            description: courseRes.data.description || '',
-            credits: courseRes.data.credits || 0,
-            semester: courseRes.data.semester || '',
-            department: courseRes.data.department || 'Unknown',
-            studentsCount: courseRes.data.enrolledCount || 0
-          };
-        })
+      // Fetch assigned courses and students
+      const assignResponse = await api.get(
+        `/v1/faculty-student-assigning/admin/faculty/${user?.id}`
       );
-      setCourses(courseDetails);
+      
+      if (assignResponse.data && assignResponse.data.length > 0) {
+        const courseIds = assignResponse.data.map(item => item.courseId).join('&id=');
+        
+        // Fetch course details
+        const courseResponse = await api.get(
+          `/api/course/detailsbyId?id=${courseIds}`
+        );
+        
+        setCourses(courseResponse.data.map((course: any) => ({
+          courseId: course.course_id.toString(),
+          courseTitle: course.courseTitle,
+          courseDescription: course.courseDescription,
+          instructorName: course.instructorName,
+          dept: course.dept,
+          duration: course.duration,
+          credit: course.credit,
+          imageUrl: course.imageUrl
+        })));
+      }
     } catch (err) {
       setError('Failed to fetch courses');
       console.error('Error fetching courses:', err);
@@ -103,31 +114,32 @@ const AttendanceScreen = () => {
     try {
       setLoading(true);
 
-      // Step 1: Get assigned roll numbers
-      const rollRes = await api.get(`/v1/faculty-student-assigning/admin/course/${course.courseId}`);
-      const assignedRollNums: string[] = rollRes.data.assignedRollNums;
-
-      // Step 2: Fetch each student's profile in parallel
-      const studentDetails = await Promise.all(
-        assignedRollNums.map(async (rollNum) => {
-          const res = await api.get(`/v1/profile/student/${rollNum}`);
-          return res.data;
-        })
+      // Get assigned students for this course
+      const assignResponse = await api.get(
+        `/v1/faculty-student-assigning/admin/faculty/${user?.id}`
       );
+      
+      const courseAssignments = assignResponse.data.find(
+        (item: any) => item.courseId === course.courseId
+      );
+      
+      if (courseAssignments) {
+        // Fetch each student's profile in parallel
+        const studentDetails = await Promise.all(
+          courseAssignments.assignedRollNums.map(async (rollNum: string) => {
+            const res = await api.get(`/v1/profile/student/${rollNum}`);
+            return {
+              ...res.data,
+              courseId: course.courseId,
+              courseName: course.courseTitle
+            };
+          })
+        );
 
-      // Step 3: Format and store students
-      setStudents(studentDetails.map((student: any) => ({
-        stdId: student.stdId,
-        stdName: student.stdName,
-        rollNum: student.rollNum,
-        deptId: student.deptId,
-        deptName: student.deptName,
-        batch: student.batch,
-        sem: student.sem
-      })));
-
-      setSelectedCourse(course);
-      setShowCourseSelection(false);
+        setStudents(studentDetails);
+        setSelectedCourse(course);
+        setShowCourseSelection(false);
+      }
     } catch (err) {
       setError('Failed to fetch students');
       console.error('Error fetching students:', err);
@@ -144,22 +156,25 @@ const AttendanceScreen = () => {
     if (!selectedCourse || !user) return;
     try {
       setLoading(true);
-      const attendanceRecords: AttendanceRecord[] = students.map(student => ({
+      const dateStr = filters.date.toISOString().split('T')[0];
+      
+      const attendanceRecords = students.map(student => ({
         stdId: student.stdId,
         stdName: student.stdName,
         facultyId: user.id,
-        facultyName: user.name,
-        courseId: selectedCourse.courseId,
-        courseName: selectedCourse.courseName,
+        facultyName: user.name || "Faculty Name",
         status: attendance[student.stdId] ? 1 : 0,
         session: filters.session,
+        courseId: selectedCourse.courseId,
+        courseName: selectedCourse.courseTitle,
         batch: student.batch,
         deptId: student.deptId,
         deptName: student.deptName,
         sem: student.sem,
-        dates: filters.date.toISOString().split('T')[0]
+        dates: dateStr
       }));
-      await api.post('/attupdate', attendanceRecords);
+      
+      await api.post('/api/attupdate', attendanceRecords);
       setShowStats(true);
     } catch (err) {
       setError('Failed to submit attendance');
@@ -178,17 +193,24 @@ const AttendanceScreen = () => {
       try {
         setLoading(true);
         if (!selectedCourse) return;
-        const response = await api.get(`/v1/attendance`, {
-          params: {
-            courseId: selectedCourse.courseId,
-            date: filters.date.toISOString().split('T')[0],
-            session: filters.session
-          }
-        });
-        const attendanceData = response.data.reduce((acc: Record<string, boolean>, record: any) => {
+        
+        const dateStr = filters.date.toISOString().split('T')[0];
+        const response = await api.get(
+          `/api/getfaculty?id=${user?.id}&date=${dateStr}`
+        );
+        
+        // Filter records for the selected course and session
+        const filteredRecords = response.data.filter(
+          (record: AttendanceRecord) => 
+            record.courseId === selectedCourse.courseId && 
+            record.session === filters.session
+        );
+        
+        const attendanceData = filteredRecords.reduce((acc: Record<string, boolean>, record: AttendanceRecord) => {
           acc[record.stdId] = record.status === 1;
           return acc;
         }, {});
+        
         setAttendance(attendanceData);
         setViewMode(true);
       } catch (err) {
@@ -207,12 +229,12 @@ const AttendanceScreen = () => {
     setShowStats(false);
     setViewMode(false);
     setAttendance({});
-    setFilters({ batch: '', course: '', department: '', semester: '', session: 'FN', date: new Date() });
+    setFilters({ batch: '', course: '', department: '', semester: '', session: 'forenoon', date: new Date() });
   };
 
   const total = students.length;
   const present = Object.values(attendance).filter(Boolean).length;
-  const absent = total - present
+  const absent = total - present;
 
   if (loading) {
     return (
@@ -258,22 +280,21 @@ const AttendanceScreen = () => {
                 style={styles.courseCard}
                 onPress={() => fetchStudentsForCourse(item)}
               >
-                <Text style={styles.courseName}>{item.courseName}</Text>
+                <Text style={styles.courseName}>{item.courseTitle}</Text>
                 <View style={styles.courseDetails}>
                   <View style={styles.detailItem}>
                     <Text style={styles.detailLabel}>Department:</Text>
-                    <Text style={styles.detailValue}>{item.department}</Text>
+                    <Text style={styles.detailValue}>{item.dept}</Text>
                   </View>
-
+                  <View style={styles.detailItem}>
+                    <Text style={styles.detailLabel}>Instructor:</Text>
+                    <Text style={styles.detailValue}>{item.instructorName}</Text>
+                  </View>
                 </View>
                 <View style={styles.courseStats}>
                   <View style={styles.statItem}>
-                    <Users size={16} color={COLORS.gray} />
-                    <Text style={styles.statText}>{item.studentsCount} Students</Text>
-                  </View>
-                  <View style={styles.statItem}>
                     <FileText size={16} color={COLORS.gray} />
-                    <Text style={styles.statText}>{item.credits} Credits</Text>
+                    <Text style={styles.statText}>{item.credit} Credits</Text>
                   </View>
                 </View>
               </TouchableOpacity>
@@ -306,7 +327,7 @@ const AttendanceScreen = () => {
                   <View>
                     <Text style={styles.studentName}>{student.stdName}</Text>
                     <Text style={styles.studentRoll}>{student.rollNum}</Text>
-                    {/* <Text style={styles.studentDept}>{student.deptName} - {student.batch}</Text> */}
+                    <Text style={styles.studentDept}>{student.deptName} - {student.batch}</Text>
                   </View>
 
                   {viewMode ? (
@@ -363,7 +384,6 @@ const AttendanceScreen = () => {
                 </View>
               </View>
             </Modal>
-
           )}
 
           {!viewMode && students.length > 0 && !showStats && (
@@ -392,8 +412,8 @@ const AttendanceScreen = () => {
                   selectedValue={filters.session}
                   onValueChange={(val) => setFilters({ ...filters, session: val })}
                 >
-                  <Picker.Item label="Forenoon (FN)" value="FN" />
-                  <Picker.Item label="Afternoon (AN)" value="AN" />
+                  <Picker.Item label="Forenoon" value="forenoon" />
+                  <Picker.Item label="Afternoon" value="afternoon" />
                 </Picker>
               </View>
 
@@ -437,6 +457,8 @@ const AttendanceScreen = () => {
     </View>
   );
 };
+
+
 
 const styles = StyleSheet.create({
   container: {
