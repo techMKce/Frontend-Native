@@ -1,7 +1,7 @@
 import React from 'react';
 import { Tabs } from 'expo-router';
 import { COLORS } from '@/constants/theme';
-import { LayoutGrid, BookOpen, Users, Calendar, User } from 'lucide-react-native';
+import { LayoutGrid, BookOpen, Users, Calendar, User, FileText } from 'lucide-react-native';
 import TabBar from '@/components/shared/TabBar';
 import { View, StyleSheet } from 'react-native';
 import { useAuth } from '@/context/AuthContext';
@@ -25,6 +25,12 @@ export default function FacultyTabsLayout() {
       href: '/(faculty)/courses',
       icon: BookOpen,
       label: 'Courses',
+    },
+    {
+      name: 'assignments',
+      href: '/(faculty)/assignments',
+      icon: FileText,
+      label: 'Assignments',
     },
     {
       name: 'students',
@@ -56,6 +62,7 @@ export default function FacultyTabsLayout() {
       >
         <Tabs.Screen name="index" />
         <Tabs.Screen name="courses" />
+        <Tabs.Screen name="assignments" />
         <Tabs.Screen name="students" />
         <Tabs.Screen name="attendance" />
         <Tabs.Screen name="profile" />
