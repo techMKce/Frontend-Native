@@ -1,115 +1,72 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  Platform,
-  ScrollView,
-  KeyboardAvoidingView,
-  ActivityIndicator,
-  Keyboard,
-} from 'react-native';
-import Toast from 'react-native-toast-message';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, ScrollView, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { useLocalSearchParams, router } from 'expo-router';
+import { useLocalSearchParams, Link, router } from 'expo-router';
 import { ChevronLeft, Mail, CircleCheck as CheckCircle } from 'lucide-react-native';
 
 export default function ForgotPasswordScreen() {
   const { forgotPassword } = useAuth();
   const params = useLocalSearchParams<{ email: string }>();
-
+  
   const [email, setEmail] = useState(params.email || '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSuccess, setIsSuccess] = useState(false);
-
-  // 4. Auto-navigate back after success
-  useEffect(() => {
-    if (isSuccess) {
-      const timer = setTimeout(() => router.back(), 5000);
-      return () => clearTimeout(timer);
-    }
-  }, [isSuccess]);
 
   const handleResetPassword = async () => {
     if (!email) {
       setError('Please enter your email address');
       return;
     }
+
     setIsLoading(true);
     setError(null);
+
     try {
       await forgotPassword(email);
       setIsSuccess(true);
-
-      // Success toast
-      Toast.show({
-        type: 'success',
-        text1: 'Email Sent',
-        text2: 'Instructions have been sent to your inbox.',
-        position: 'top',
-        visibilityTime: 3000,
-        autoHide: true,
-      });
-    } catch (err: any) {
-      const msg = err.message || 'Failed to reset password. Please try again.';
-      setError(msg);
-
-      // 2. Error toast
-      Toast.show({
-        type: 'error',
-        text1: 'Reset Failed',
-        text2: msg,
-        position: 'top',
-        visibilityTime: 3000,
-        autoHide: true,
-      });
+    } catch (error: any) {
+      setError(error.message || 'Failed to reset password. Please try again.');
     } finally {
       setIsLoading(false);
     }
   };
 
-
-  const handleBackToLogin = () => router.back();
+  const handleBackToLogin = () => {
+    router.back();
+  };
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scrollContainer}
-        keyboardShouldPersistTaps="handled"        // 1. ensure taps register
-        onTouchStart={Keyboard.dismiss}            // 1. dismiss keyboard on background tap
->
+      style={styles.container}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={handleBackToLogin}
-            accessibilityRole="button"
-            accessibilityLabel="Back to login"
-          >
+          <TouchableOpacity style={styles.backButton} onPress={handleBackToLogin}>
             <ChevronLeft size={24} color={COLORS.primary} />
             <Text style={styles.backText}>Back to Login</Text>
           </TouchableOpacity>
-
           <Text style={styles.title}>Forgot Password</Text>
         </View>
 
         <View style={styles.formContainer}>
           {isSuccess ? (
-            // success state
             <View style={styles.successContainer}>
               <CheckCircle size={64} color={COLORS.success} />
-              <Text style={styles.successTitle}>A Email has been sent to your Email ID!</Text>
+              <Text style={styles.successTitle}>Email Sent!</Text>
               <Text style={styles.successText}>
-                You will be redirected back to login shortly.
+                Password reset instructions have been sent to your email address.
               </Text>
+              <TouchableOpacity 
+                style={styles.backToLoginButton}
+                onPress={handleBackToLogin}
+              >
+                <Text style={styles.backToLoginText}>Back to Login</Text>
+              </TouchableOpacity>
             </View>
           ) : (
-            // form state
             <>
               <Text style={styles.instruction}>
                 Enter your email address and we'll send you instructions to reset your password.
@@ -125,24 +82,19 @@ export default function ForgotPasswordScreen() {
                   keyboardType="email-address"
                   autoCapitalize="none"
                   placeholderTextColor={COLORS.gray}
-                  editable={!isSuccess}                        // 3. disable for success
-                  accessibilityLabel="Email address input"
                 />
               </View>
 
               {error && <Text style={styles.errorText}>{error}</Text>}
 
-              <TouchableOpacity
+              <TouchableOpacity 
                 style={styles.resetButton}
                 onPress={handleResetPassword}
-                disabled={isLoading || isSuccess}            // 3. disable for success
-                accessibilityRole="button"
-                accessibilityLabel="Send password reset email"
+                disabled={isLoading}
               >
                 {isLoading ? (
                   <ActivityIndicator color={COLORS.white} size="small" />
                 ) : (
-                 
                   <Text style={styles.resetButtonText}>Reset Password</Text>
                 )}
               </TouchableOpacity>
@@ -156,7 +108,6 @@ export default function ForgotPasswordScreen() {
           </Text>
         </View>
       </ScrollView>
-       <Toast topOffset={60} />
     </KeyboardAvoidingView>
   );
 }
@@ -194,7 +145,11 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 400,
     alignSelf: 'center',
-    ...Platform.select({ web: { width: 400 } }),
+    ...Platform.select({
+      web: {
+        width: 400,
+      },
+    }),
   },
   instruction: {
     fontFamily: FONT.regular,
@@ -258,6 +213,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: SPACING.lg,
   },
+  backToLoginButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.xl,
+    marginTop: SPACING.md,
+  },
+  backToLoginText: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.md,
+    color: COLORS.white,
+  },
   footer: {
     marginTop: SPACING.xl,
     alignItems: 'center',
@@ -268,4 +235,4 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     textAlign: 'center',
   },
-}); 
+});

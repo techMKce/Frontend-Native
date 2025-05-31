@@ -1,30 +1,10 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  FlatList,
-  TextInput,
-  Modal,
-} from 'react-native';
-import {
-  COLORS,
-  FONT,
-  SIZES,
-  SPACING,
-  SHADOWS,
-} from '@/constants/theme';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, TextInput, Modal } from 'react-native';
+import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
-import {
-  Plus,
-  Search,
-  Users,
-  Clock,
-  FileText,
-} from 'lucide-react-native';
+import { Plus, Search, Users, Clock, FileText } from 'lucide-react-native';
 
-const initialCourses = [
+const mockCourses = [
   {
     id: '1',
     name: 'Advanced Database Systems',
@@ -45,7 +25,6 @@ const initialCourses = [
 
 export default function FacultyCoursesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [courses, setCourses] = useState(initialCourses);
   const [isAddModalVisible, setIsAddModalVisible] = useState(false);
   const [newCourse, setNewCourse] = useState({
     name: '',
@@ -54,36 +33,22 @@ export default function FacultyCoursesScreen() {
     credits: '',
   });
 
-  const filteredCourses = courses.filter(
+  const filteredCourses = mockCourses.filter(
     (course) =>
       course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       course.description.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleAddCourse = () => {
-    if (!newCourse.name.trim()) return;
-
-    const newId = (courses.length + 1).toString();
-    const courseToAdd = {
-      id: newId,
-      students: 0,
-      ...newCourse,
-      credits: parseInt(newCourse.credits) || 0,
-    };
-    setCourses([...courses, courseToAdd]);
+    // Add course logic here
     setIsAddModalVisible(false);
-    setNewCourse({
-      name: '',
-      description: '',
-      duration: '',
-      credits: '',
-    });
+    setNewCourse({ name: '', description: '', duration: '', credits: '' });
   };
 
   return (
     <View style={styles.container}>
       <Header title="My Courses" />
-
+      
       <View style={styles.content}>
         <View style={styles.searchContainer}>
           <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
@@ -109,18 +74,18 @@ export default function FacultyCoursesScreen() {
             <TouchableOpacity style={styles.courseCard}>
               <Text style={styles.courseName}>{item.name}</Text>
               <Text style={styles.courseDescription}>{item.description}</Text>
-
+              
               <View style={styles.courseStats}>
                 <View style={styles.statItem}>
                   <Users size={16} color={COLORS.gray} />
                   <Text style={styles.statText}>{item.students} Students</Text>
                 </View>
-
+                
                 <View style={styles.statItem}>
                   <Clock size={16} color={COLORS.gray} />
                   <Text style={styles.statText}>{item.duration}</Text>
                 </View>
-
+                
                 <View style={styles.statItem}>
                   <FileText size={16} color={COLORS.gray} />
                   <Text style={styles.statText}>{item.credits} Credits</Text>
@@ -140,45 +105,37 @@ export default function FacultyCoursesScreen() {
           <View style={styles.modalOverlay}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>Add New Course</Text>
-
+              
               <TextInput
                 style={styles.input}
                 placeholder="Course Name"
                 value={newCourse.name}
-                onChangeText={(text) =>
-                  setNewCourse({ ...newCourse, name: text })
-                }
+                onChangeText={(text) => setNewCourse({ ...newCourse, name: text })}
                 placeholderTextColor={COLORS.gray}
               />
-
+              
               <TextInput
                 style={styles.input}
                 placeholder="Description"
                 value={newCourse.description}
-                onChangeText={(text) =>
-                  setNewCourse({ ...newCourse, description: text })
-                }
+                onChangeText={(text) => setNewCourse({ ...newCourse, description: text })}
                 placeholderTextColor={COLORS.gray}
                 multiline
               />
-
+              
               <TextInput
                 style={styles.input}
                 placeholder="Duration (e.g., 16 weeks)"
                 value={newCourse.duration}
-                onChangeText={(text) =>
-                  setNewCourse({ ...newCourse, duration: text })
-                }
+                onChangeText={(text) => setNewCourse({ ...newCourse, duration: text })}
                 placeholderTextColor={COLORS.gray}
               />
-
+              
               <TextInput
                 style={styles.input}
                 placeholder="Credits"
                 value={newCourse.credits}
-                onChangeText={(text) =>
-                  setNewCourse({ ...newCourse, credits: text })
-                }
+                onChangeText={(text) => setNewCourse({ ...newCourse, credits: text })}
                 placeholderTextColor={COLORS.gray}
                 keyboardType="numeric"
               />
@@ -190,7 +147,7 @@ export default function FacultyCoursesScreen() {
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-
+                
                 <TouchableOpacity
                   style={[styles.modalButton, styles.addButtonModal]}
                   onPress={handleAddCourse}

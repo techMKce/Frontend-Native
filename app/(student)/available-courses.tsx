@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, FlatList, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  FlatList,
+  ActivityIndicator,
+} from 'react-native';
 import { COLORS, FONT, SIZES, SPACING } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import CourseCard, { Course } from '@/components/student/CourseCard';
 import { Search } from 'lucide-react-native';
 
-// Mock course data
 const mockCourses: Course[] = [
   {
     id: '1',
     name: 'Introduction to Computer Science',
-    description: 'A foundational course covering the basics of computer science, algorithms, and programming concepts.',
+    description:
+      'A foundational course covering the basics of computer science, algorithms, and programming concepts.',
     faculty: 'Dr. John Smith',
     credits: 4,
     duration: '16 weeks',
@@ -19,7 +26,8 @@ const mockCourses: Course[] = [
   {
     id: '2',
     name: 'Advanced Database Systems',
-    description: 'This course covers advanced topics in database design, query optimization, and distributed databases.',
+    description:
+      'This course covers advanced topics in database design, query optimization, and distributed databases.',
     faculty: 'Dr. Lisa Johnson',
     credits: 3,
     duration: '12 weeks',
@@ -28,7 +36,8 @@ const mockCourses: Course[] = [
   {
     id: '3',
     name: 'Artificial Intelligence',
-    description: 'An introduction to artificial intelligence concepts, machine learning algorithms, and neural networks.',
+    description:
+      'An introduction to artificial intelligence concepts, machine learning algorithms, and neural networks.',
     faculty: 'Prof. Michael Lee',
     credits: 4,
     duration: '16 weeks',
@@ -37,7 +46,8 @@ const mockCourses: Course[] = [
   {
     id: '4',
     name: 'Web Development',
-    description: 'Learn modern web development techniques, frameworks, and best practices for building responsive web applications.',
+    description:
+      'Learn modern web development techniques, frameworks, and best practices for building responsive web applications.',
     faculty: 'Dr. Sarah Williams',
     credits: 3,
     duration: '12 weeks',
@@ -46,7 +56,8 @@ const mockCourses: Course[] = [
   {
     id: '5',
     name: 'Data Structures and Algorithms',
-    description: 'A comprehensive study of data structures, algorithms, and their analysis for efficient problem-solving.',
+    description:
+      'A comprehensive study of data structures, algorithms, and their analysis for efficient problem-solving.',
     faculty: 'Prof. Robert Chen',
     credits: 4,
     duration: '16 weeks',
@@ -58,8 +69,16 @@ export default function AvailableCoursesScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [enrollingCourseId, setEnrollingCourseId] = useState<string | null>(null);
+  const [enrolledCourses, setEnrolledCourses] = useState<string[]>([]); // course ids
 
-  // Filter courses based on search query
+  const handleEnroll = (courseId: string) => {
+    setEnrollingCourseId(courseId);
+    setTimeout(() => {
+      setEnrolledCourses((prev) => [...prev, courseId]);
+      setEnrollingCourseId(null);
+    }, 1000);
+  };
+
   const filteredCourses = mockCourses.filter(
     (course) =>
       course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -67,21 +86,9 @@ export default function AvailableCoursesScreen() {
       course.faculty.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleEnroll = (courseId: string) => {
-    setEnrollingCourseId(courseId);
-    
-    // Simulate API call
-    setTimeout(() => {
-      // In a real app, this would update the backend
-      setEnrollingCourseId(null);
-      // Show success message or update UI
-    }, 1000);
-  };
-
   return (
     <View style={styles.container}>
       <Header title="Available Courses" />
-      
       <View style={styles.content}>
         <View style={styles.searchContainer}>
           <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
@@ -105,10 +112,11 @@ export default function AvailableCoursesScreen() {
             data={filteredCourses}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <CourseCard 
-                course={item} 
-                showEnrollButton={true}
-                onEnroll={handleEnroll}
+              <CourseCard
+                course={{ ...item, enrolled: enrolledCourses.includes(item.id) }}
+                showEnrollButton={!enrolledCourses.includes(item.id)}
+                onEnroll={() => handleEnroll(item.id)}
+                enrolling={enrollingCourseId === item.id}
               />
             )}
             contentContainerStyle={styles.coursesList}
@@ -148,7 +156,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
   },
   coursesList: {
-    paddingBottom: 100, // Extra space for the tab bar
+    paddingBottom: 100,
   },
   loader: {
     marginTop: SPACING.xl,

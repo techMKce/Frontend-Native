@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Platform, Pressable } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { usePathname, Link } from 'expo-router';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
+
 
 interface TabItem {
   name: string;
@@ -28,42 +29,33 @@ const TabBar: React.FC<TabBarProps> = ({ tabs }) => {
 
   return (
     <View style={styles.container}>
-      {tabs.map((tab) => {
-        const active = isActive(tab.href);
-        return (
-          <Link key={tab.name} href={tab.href as any} asChild>
-            <Pressable 
-              style={({ pressed }) => [
-                styles.tab,
-                active && styles.activeTab,
-                Platform.OS === 'web' && {
-                  cursor: 'pointer',
-                  ':hover': {
-                    backgroundColor: COLORS.primaryLight,
-                  }
-                }
-              ]}
-            >
-              <View style={styles.tabContent}>
-                <View style={styles.iconContainer}>
-                  <tab.icon 
-                    size={24} 
-                    color={active ? COLORS.primary : COLORS.gray} 
-                  />
-                </View>
-                <Text 
-                  style={[
-                    styles.tabLabel,
-                    active && styles.activeTabLabel
-                  ]}
-                >
-                  {tab.label}
-                </Text>
+      {tabs.map((tab) => (
+        <Link key={tab.name} href={tab.href as any} asChild>
+          <TouchableOpacity 
+            style={[
+              styles.tab, 
+              isActive(tab.href) && styles.activeTab
+            ]}
+          >
+            <View style={styles.tabContent}>
+              <View style={styles.iconContainer}>
+                <tab.icon 
+                  size={24} 
+                  color={isActive(tab.href) ? COLORS.primary : COLORS.gray} 
+                />
               </View>
-            </Pressable>
-          </Link>
-        );
-      })}
+              <Text 
+                style={[
+                  styles.tabLabel, 
+                  isActive(tab.href) && styles.activeTabLabel
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </Link>
+      ))}
     </View>
   );
 };
@@ -82,29 +74,31 @@ const styles = StyleSheet.create({
       android: 70,
       default: 70,
     }),
-    ...(Platform.OS === 'web' ? {
-      position: 'fixed',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      zIndex: 100,
-    } : {
-      elevation: 8,
-      shadowColor: COLORS.black,
-      shadowOffset: {
-        width: 0,
-        height: -3,
+    ...Platform.select({
+      web: {
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 100,
       },
-      shadowOpacity: 0.1,
-      shadowRadius: 3,
+      default: {
+        elevation: 8,
+        shadowColor: COLORS.black,
+        shadowOffset: {
+          width: 0,
+          height: -3,
+        },
+        shadowOpacity: 0.1,
+        shadowRadius: 3,
+      },
     }),
   },
   tab: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 8,
-    marginHorizontal: 4,
+   
   },
   tabContent: {
     alignItems: 'center',
