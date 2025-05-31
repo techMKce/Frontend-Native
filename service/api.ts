@@ -1,3 +1,4 @@
+
 // api.ts
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -30,6 +31,7 @@ api.interceptors.response.use(
       await AsyncStorage.removeItem('token');
       // Optionally, you can use a navigation reset here
       console.warn('Unauthorized: token removed');
+
     }
     return Promise.reject(error);
   }
