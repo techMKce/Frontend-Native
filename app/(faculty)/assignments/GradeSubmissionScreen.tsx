@@ -14,7 +14,7 @@ import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import Api from '@/service/api';
+import Api, { BASE_URL } from '@/service/api';
 
 interface Submission {
   assignmentId: string;
@@ -55,7 +55,7 @@ const GradeSubmissionScreen = () => {
 
       try {
         const response = await fetch(
-          `https://assignmentservice-2a8o.onrender.com/api/submissions/id?submissionId=${submissionId}`
+          `${BASE_URL}/submissions/id?submissionId=${submissionId}`
         );
         const data = await response.json();
         console.log('API response:', data);
@@ -128,7 +128,7 @@ const GradeSubmissionScreen = () => {
               icon="download"
               size={18}
               onPress={async () => {
-                const url = `https://assignmentservice-2a8o.onrender.com/api/submissions/download?submissionId=${submissionId}`;
+                const url = `${BASE_URL}/submissions/download?submissionId=${submissionId}`;
                 try {
                   await WebBrowser.openBrowserAsync(url);
                 } catch (error: unknown) {
@@ -200,7 +200,7 @@ const GradeSubmissionScreen = () => {
 
               try {
                 const response = await fetch(
-                  'https://assignmentservice-2a8o.onrender.com/api/gradings',
+                  `${BASE_URL}/gradings`,
                   {
                     method: 'POST',
                     headers: {

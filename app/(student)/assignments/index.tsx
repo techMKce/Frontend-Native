@@ -5,6 +5,7 @@ import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import { Search, Calendar, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { BASE_URL } from '@/service/api';
 
 // Define interfaces (unchanged)
 interface Assignment {
@@ -45,7 +46,7 @@ export default function StudentAssignmentsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const BASE_URL = 'https://assignmentservice-2a8o.onrender.com/api';
+  //const BASE_URL = 'https://assignmentservice-2a8o.onrender.com/api';
   const studentRollNumber = 'STU123';
 
   // Make fetchAssignmentsAndData reusable with useCallback

@@ -15,6 +15,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import axios from 'axios';
 import * as WebBrowser from 'expo-web-browser';
 import Api from '@/service/api';
+import {BASE_URL} from '@/service/api';
 
 interface StudentSubmission {
   id: number;
@@ -104,7 +105,7 @@ export default function GradeSubmissionsScreen() {
 const handleDownloadReport = async () => {
   
 
-    const url = `https://assignmentservice-2a8o.onrender.com/api/gradings/download?assignmentId=${assignmentId}`;
+    const url = `${BASE_URL}/gradings/download?assignmentId=${assignmentId}`;
     try {
       await WebBrowser.openBrowserAsync(url);
 

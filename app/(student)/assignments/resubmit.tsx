@@ -7,6 +7,7 @@ import * as FileSystem from 'expo-file-system';
 import { Calendar, Upload, X, Download, Eye } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import { BASE_URL } from '@/service/api';
 
 // Define the Assignment interface inline
 interface Assignment {
@@ -41,7 +42,7 @@ export default function ResubmitAssignmentScreen() {
 
   const { id } = useLocalSearchParams(); // Get the assignmentId from route params
   const assignmentId = id as string;
-  const BASE_URL = 'https://assignmentservice-2a8o.onrender.com/api';
+  //const BASE_URL = 'https://assignmentservice-2a8o.onrender.com/api';
 
   // Hardcoded student details (replace with actual user context if available)
   const studentName = 'John Doe';

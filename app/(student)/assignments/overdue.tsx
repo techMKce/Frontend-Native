@@ -6,6 +6,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { Calendar, Upload, X, Download, Eye } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { BASE_URL } from '@/service/api';
 
 // Define the Assignment interface inline
 interface Assignment {
@@ -41,7 +42,7 @@ export default function SubmitAssignmentScreen() {
   const [facultyFileName, setFacultyFileName] = useState<string>('Faculty Assignment File'); // State for faculty file name
 
   const { id } = useLocalSearchParams(); // Get the assignmentId from route params
-  const BASE_URL = 'https://assignmentservice-2a8o.onrender.com/api';
+ // const BASE_URL = 'https://assignmentservice-2a8o.onrender.com/api';
 
   // Hardcoded student details (replace with actual user context if available)
   const studentName = 'John Doe';
