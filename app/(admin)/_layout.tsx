@@ -29,6 +29,8 @@ export default function AdminTabsLayout() {
     {
       name: 'student',
       href: '/(admin)/student',
+      icon: GraduationCap,
+      label: 'Students',
     },
     {
       name: 'courses',
@@ -55,6 +57,7 @@ export default function AdminTabsLayout() {
         screenOptions={{
           headerShown: false,
         }}
+        tabBar={() => <TabBar tabs={tabs} />}
       >
         <Tabs.Screen name="index" />
         <Tabs.Screen name="faculty" />

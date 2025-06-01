@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Check } from 'lucide-react-native';
-import axios from 'axios';
+import api from '@/service/api';
 import Header from '@/components/shared/Header';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import profileApi from '@/service/profileapi'
@@ -34,7 +34,7 @@ export default function AssignStudentsScreen() {
   useEffect(() => {
     const fetchDepartments = async () => {
       try {
-        const res = await profileApi.get('/profile/faculty/departments');
+        const res = await api.get('/profile/faculty/departments');
         setDepartments(res.data);
       } catch (error) {
         console.error('Error fetching departments', error);
@@ -53,7 +53,7 @@ export default function AssignStudentsScreen() {
 
     const fetchFaculty = async () => {
       try {
-        const res = await profileApi.get(
+        const res = await api.get(
           `/faculty?departments=${selectedDepartment}`
         );
         setFacultyList(res.data);
@@ -76,8 +76,8 @@ export default function AssignStudentsScreen() {
 
     const fetchCourses = async () => {
       try {
-        const res = await axios.get(
-          `http://localhost:8082/api/v1/courses?facultyId=${selectedFaculty}`
+        const res = await api.get(
+          `/courses?facultyId=${selectedFaculty}`
         );
         setCourses(res.data);
       } catch (error) {
@@ -100,8 +100,8 @@ export default function AssignStudentsScreen() {
     const fetchStudents = async () => {
       try {
         // Fetch students for the department or course - adjust API as needed
-        const res = await axios.get(
-          `http://localhost:8082/api/v1/students?department=${selectedDepartment}`
+        const res = await api.get(
+          `/students?department=${selectedDepartment}`
         );
         setStudents(res.data);
       } catch (error) {
@@ -134,8 +134,8 @@ export default function AssignStudentsScreen() {
         assignedRollNums: selectedStudents, // assuming student IDs are roll numbers or adjust accordingly
       };
 
-      await axios.post(
-        'http://localhost:8082/api/v1/faculty-student-assigning/admin/assign',
+      await api.post(
+        '/faculty-student-assigning/admin/assign',
         payload
       );
 

@@ -12,7 +12,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Checkbox } from 'react-native-paper';
 import dayjs from 'dayjs';
-import axios from 'axios';
+import api from '@/service/api'; // Adjust the import path as necessary
 import Header from '@/components/shared/Header';
 
 interface Course {
@@ -47,8 +47,9 @@ export default function ScheduleManagementScreen() {
     // Fetch active courses from backend on mount
     const fetchCourses = async () => {
       try {
-        const response = await axios.get('http://192.168.67.11:8080/api/course/active');
+        const response = await api.get('/course/active');
         const data = response.data;
+        console.log('Fetched courses:', data);
 
         if (!Array.isArray(data)) {
           Alert.alert('Error', 'Failed to fetch courses');
@@ -131,7 +132,7 @@ export default function ScheduleManagementScreen() {
     formData.append('duration', JSON.stringify(duration));
 
     try {
-      const response = await axios.post('http://192.168.67.11:8080/api/postexam', formData, {
+      const response = await api.post('/postexam', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

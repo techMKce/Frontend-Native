@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import api from '@/service/api';
 import {
   View,
@@ -24,29 +24,8 @@ import {
   Mail,
   GraduationCap,
   Trash2,
-  CreditCard as Edit2,
+  Edit2,
 } from 'lucide-react-native';
-
-// const mockStudents = [
-//   {
-//     id: '1',
-//     rollNumber: 'CS001',
-//     name: 'Alice Johnson',
-//     email: 'alice.johnson@student.edu',
-//     department: 'Computer Science',
-//     year: '2',
-//     password: 'password123',
-//   },
-//   {
-//     id: '2',
-//     rollNumber: 'EC002',
-//     name: 'Bob Williams',
-//     email: 'bob.williams@student.edu',
-//     department: 'Electronics',
-//     year: '3',
-//     password: 'securepass',
-//   },
-// ];
 
 export default function StudentManagementScreen() {
   const [studentList, setStudentList] = useState([]);
@@ -62,84 +41,113 @@ export default function StudentManagementScreen() {
     year: '',
   });
 
+  // Fetch students on component mount
+  useEffect(() => {
+    const fetchStudents = async () => {
+      try {
+        const response = await api.get('/auth/students/all');
+        if (response.data) {
+          const studentData = response.data.map((student) => ({
+            rollNumber: student.id,
+            name: student.name,
+            email: student.email,
+            department: student.department,
+            year: student.year,
+          }));
+          setStudentList(studentData);
+        }
+      } catch (error) {
+        console.error('Error fetching students:', error);
+        Alert.alert('Error', 'Failed to fetch students');
+      }
+    };
+
+    fetchStudents();
+  }, []);
+
   const filteredStudents = studentList.filter(
     (student) =>
-      student.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      student.department.toLowerCase().includes(searchQuery.toLowerCase())
+      student.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      student.department?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   const handleSaveStudent = async () => {
-  if (
-    !newStudent.name.trim() ||
-    !newStudent.email.trim() ||
-    !newStudent.rollNumber.trim() ||
-    !newStudent.department.trim() ||
-    !newStudent.year.trim()
-  ) {
-    Alert.alert('Validation', 'Please fill all fields');
-    return;
-  }
+    if (
+      !newStudent.name.trim() ||
+      !newStudent.email.trim() ||
+      !newStudent.rollNumber.trim() ||
+      !newStudent.department.trim() ||
+      !newStudent.year.trim()
+    ) {
+      Alert.alert('Validation', 'Please fill all fields');
+      return;
+    }
 
-  if (isEditMode) {
-    // Local update only for now
-    setStudentList((prev) =>
-      prev.map((student) =>
-        student.id === editStudentId ? { ...newStudent, id: editStudentId } : student
-      )
-    );
-  } else {
     try {
-      const studentData = {
-        id: newStudent.rollNumber,
-        name: newStudent.name,
-        email: newStudent.email,
-        department: newStudent.department,
-        year: newStudent.year,
-        // password: 'default123', // if required
-      };
+      if (isEditMode) {
+        // Update existing student
 
-      console.log('Sending student data:', studentData);
-
-      const response = await api.post(`/auth/signup?for=student`, studentData);
-
-      if (response.status === 200) {
-        const newEntry = {
-          ...newStudent,
+        const studentData = {
           id: newStudent.rollNumber,
+          name: newStudent.name,
+          email: newStudent.email,
+          department: newStudent.department,
+          year: newStudent.year,
         };
-        setStudentList((prev) => [newEntry, ...prev]);
-        Alert.alert('Success', 'Student added successfully');
+        const response = await api.put(`/auth/update/${editStudentId}`, studentData);
+        if (response.status === 200) {
+          setStudentList((prev) =>
+            prev.map((student) =>
+              student.rollNumber === editStudentId ? response.data : student
+            )
+          );
+          Alert.alert('Success', 'Student updated successfully');
+        } 
+      } else {
+        // Add new student
+        const studentData = {
+          id: newStudent.rollNumber,
+          name: newStudent.name,
+          email: newStudent.email,
+          department: newStudent.department,
+          year: newStudent.year,
+        };
+
+        const response = await api.post('/auth/signup?for=student', studentData);
+        if (response.status === 200) {
+          setStudentList((prev) => [response.data, ...prev]);
+          Alert.alert('Success', 'Student added successfully');
+        }
       }
+
+      setIsAddModalVisible(false);
+      setNewStudent({
+        rollNumber: '',
+        name: '',
+        email: '',
+        department: '',
+        year: '',
+      });
+      setIsEditMode(false);
+      setEditStudentId(null);
     } catch (error) {
-      console.error('Error adding student:', error);
-      let errorMessage = 'Failed to add student';
+      console.error('Error saving student:', error);
+      let errorMessage = 'Failed to save student';
 
       if (error.response) {
         if (error.response.status === 409) {
           errorMessage = 'Student already exists';
         } else {
-          errorMessage = error.response.data || errorMessage;
+          errorMessage = error.response.data.message || errorMessage;
         }
       }
 
       Alert.alert('Error', errorMessage);
     }
-  }
+  };
 
-  setIsAddModalVisible(false);
-  setNewStudent({
-    rollNumber: '',
-    name: '',
-    email: '',
-    department: '',
-    year: '',
-  });
-  setIsEditMode(false);
-  setEditStudentId(null);
-};
-
-  const handleDeleteStudent = (id) => {
+  const handleDeleteStudent = async (id) => {
     Alert.alert(
       'Confirm Delete',
       'Are you sure you want to delete this student?',
@@ -148,8 +156,15 @@ export default function StudentManagementScreen() {
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: () =>
-            setStudentList((prev) => prev.filter((student) => student.id !== id)),
+          onPress: async () => {
+            try {
+              await api.delete(`/auth/delete/${id}`);
+              setStudentList((prev) => prev.filter((student) => student.rollNumber !== id));
+            } catch (error) {
+              console.error('Error deleting student:', error);
+              Alert.alert('Error', 'Failed to delete student');
+            }
+          },
         },
       ],
       { cancelable: true }
@@ -165,7 +180,7 @@ export default function StudentManagementScreen() {
           <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
-            placeholder="  Search students..."
+            placeholder="Search students..."
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholderTextColor={COLORS.gray}
@@ -181,7 +196,6 @@ export default function StudentManagementScreen() {
                 email: '',
                 department: '',
                 year: '',
-                password: '',
               });
             }}
           >
@@ -191,7 +205,7 @@ export default function StudentManagementScreen() {
 
         <FlatList
           data={filteredStudents}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => item.rollNumber}
           renderItem={({ item }) => (
             <View style={styles.studentCard}>
               <View style={styles.studentHeader}>
@@ -204,9 +218,15 @@ export default function StudentManagementScreen() {
                   <TouchableOpacity
                     style={styles.editButton}
                     onPress={() => {
-                      setNewStudent(item);
+                      setNewStudent({
+                        rollNumber: item.rollNumber,
+                        name: item.name,
+                        email: item.email,
+                        department: item.department,
+                        year: item.year,
+                      });
                       setIsEditMode(true);
-                      setEditStudentId(item.id);
+                      setEditStudentId(item.rollNumber);
                       setIsAddModalVisible(true);
                     }}
                   >
@@ -214,7 +234,7 @@ export default function StudentManagementScreen() {
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={styles.deleteButton}
-                    onPress={() => handleDeleteStudent(item.id)}
+                    onPress={() => handleDeleteStudent(item.rollNumber)}
                   >
                     <Trash2 size={16} color={COLORS.error} />
                   </TouchableOpacity>
@@ -232,13 +252,13 @@ export default function StudentManagementScreen() {
                   <Text style={styles.detailText}>{item.department}</Text>
                 </View>
 
-                <View style={styles.detailItem}>
-                  <Text style={styles.detailText}>Password: {item.password}</Text>
-                </View>
               </View>
             </View>
           )}
           contentContainerStyle={styles.studentList}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>No students found</Text>
+          }
         />
 
         <Modal
@@ -254,11 +274,15 @@ export default function StudentManagementScreen() {
               </Text>
 
               {['rollNumber', 'name', 'email', 'department', 'year'].map(
-                (field, index) => (
+                (field) => (
                   <TextInput
-                    key={index}
+                    key={field}
                     style={styles.input}
-                    placeholder={field.charAt(0).toUpperCase() + field.slice(1)}
+                    placeholder={
+                      field === 'password' && isEditMode 
+                        ? 'Leave blank to keep current password' 
+                        : field.charAt(0).toUpperCase() + field.slice(1)
+                    }
                     value={newStudent[field]}
                     onChangeText={(text) =>
                       setNewStudent((prev) => ({ ...prev, [field]: text }))
@@ -296,10 +320,24 @@ export default function StudentManagementScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.background },
-  content: { flex: 1, padding: SPACING.md },
-  searchContainer: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.md },
-  searchIcon: { position: 'absolute', left: SPACING.md, zIndex: 1 },
+  container: { 
+    flex: 1, 
+    backgroundColor: COLORS.background 
+  },
+  content: { 
+    flex: 1, 
+    padding: SPACING.md 
+  },
+  searchContainer: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: SPACING.md 
+  },
+  searchIcon: { 
+    position: 'absolute', 
+    left: SPACING.md, 
+    zIndex: 1 
+  },
   searchInput: {
     flex: 1,
     backgroundColor: COLORS.white,
@@ -319,7 +357,15 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.sm,
     ...SHADOWS.small,
   },
-  studentList: { paddingBottom: 100 },
+  studentList: { 
+    paddingBottom: 100 
+  },
+  emptyText: {
+    textAlign: 'center',
+    marginTop: SPACING.lg,
+    color: COLORS.gray,
+    fontFamily: FONT.regular,
+  },
   studentCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -342,11 +388,24 @@ const styles = StyleSheet.create({
     fontSize: SIZES.sm,
     color: COLORS.gray,
   },
-  actionButtons: { flexDirection: 'row', gap: SPACING.sm },
-  editButton: { padding: SPACING.xs },
-  deleteButton: { padding: SPACING.xs },
-  studentDetails: { marginTop: SPACING.sm },
-  detailItem: { flexDirection: 'row', alignItems: 'center', marginBottom: SPACING.xs },
+  actionButtons: { 
+    flexDirection: 'row', 
+    gap: SPACING.sm 
+  },
+  editButton: { 
+    padding: SPACING.xs 
+  },
+  deleteButton: { 
+    padding: SPACING.xs 
+  },
+  studentDetails: { 
+    marginTop: SPACING.sm 
+  },
+  detailItem: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    marginBottom: SPACING.xs 
+  },
   detailText: {
     fontFamily: FONT.regular,
     fontSize: SIZES.sm,
@@ -394,8 +453,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: SPACING.xs,
   },
-  cancelButton: { backgroundColor: COLORS.background },
-  addButtonModal: { backgroundColor: COLORS.primary },
+  cancelButton: { 
+    backgroundColor: COLORS.background 
+  },
+  addButtonModal: { 
+    backgroundColor: COLORS.primary 
+  },
   cancelButtonText: {
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
