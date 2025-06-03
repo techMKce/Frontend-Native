@@ -8,36 +8,69 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { Check } from 'lucide-react-native';
 import api from '@/service/api';
 import Header from '@/components/shared/Header';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
-import profileApi from '@/service/profileapi'
+
+interface Student {
+  id: string;
+  name: string;
+  rollNumber: string;
+  department: string;
+}
+
+interface Faculty {
+  id: string;
+  name: string;
+  facultyId: string;
+  department: string;
+}
+
+interface Course {
+  id: string;
+  name: string;
+  code: string;
+  department: string;
+  isEnabled: boolean;
+}
+
 export default function AssignStudentsScreen() {
-  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
-  const [facultyList, setFacultyList] = useState<{ id: string; name: string }[]>([]);
-  const [courses, setCourses] = useState<{ id: string; name: string }[]>([]);
-  const [students, setStudents] = useState<
-    { id: string; name: string; roll: string; department: string }[]
-  >([]);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [facultyList, setFacultyList] = useState<Faculty[]>([]);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [enrolledStudents, setEnrolledStudents] = useState<Student[]>([]);
+  const [loading, setLoading] = useState({
+    departments: false,
+    faculty: false,
+    courses: false,
+    students: false,
+    assigning: false,
+  });
 
   const [selectedDepartment, setSelectedDepartment] = useState('');
   const [selectedFaculty, setSelectedFaculty] = useState('');
   const [selectedCourse, setSelectedCourse] = useState('');
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
-  const [isAssigned, setIsAssigned] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   // Fetch departments on mount
   useEffect(() => {
     const fetchDepartments = async () => {
+      setLoading(prev => ({...prev, departments: true}));
       try {
         const res = await api.get('/profile/faculty/departments');
-        setDepartments(res.data);
+        if (res.data) {
+          setDepartments(res.data.filter((dept: string) => dept !== null));
+        }
       } catch (error) {
+        Alert.alert('Error', 'Failed to load departments');
         console.error('Error fetching departments', error);
+      } finally {
+        setLoading(prev => ({...prev, departments: false}));
       }
     };
     fetchDepartments();
@@ -52,66 +85,106 @@ export default function AssignStudentsScreen() {
     }
 
     const fetchFaculty = async () => {
+      setLoading(prev => ({...prev, faculty: true}));
       try {
-        const res = await api.get(
-          `/faculty?departments=${selectedDepartment}`
-        );
-        setFacultyList(res.data);
+        const endpoint = selectedDepartment === 'all' 
+          ? '/profile/faculty' 
+          : `/profile/faculty/by-department/${selectedDepartment}`;
+        
+        const res = await api.get(endpoint);
+        if (res.data) {
+          const facultyData: Faculty[] = res.data.map((f: any) => ({
+            id: f.staffId,
+            name: f.name,
+            facultyId: f.facultyId,
+            department: f.department,
+          }));
+          setFacultyList(facultyData);
+        }
       } catch (error) {
+        Alert.alert('Error', 'Failed to load faculty');
         console.error('Error fetching faculty', error);
+      } finally {
+        setLoading(prev => ({...prev, faculty: false}));
       }
     };
 
     fetchFaculty();
     setSelectedFaculty('');
+    setSelectedCourse('');
   }, [selectedDepartment]);
 
-  // Fetch courses when faculty changes
+  // Fetch all courses on mount
   useEffect(() => {
-    if (!selectedFaculty) {
-      setCourses([]);
-      setSelectedCourse('');
-      return;
-    }
-
     const fetchCourses = async () => {
+      setLoading(prev => ({...prev, courses: true}));
       try {
-        const res = await api.get(
-          `/courses?facultyId=${selectedFaculty}`
-        );
-        setCourses(res.data);
+        const res = await api.get('/course/details');
+        if (res.data) {
+          const coursesData: Course[] = res.data.map((course: any) => ({
+            id: course.course_id,
+            name: course.courseTitle,
+            code: course.courseCode,
+            department: course.department,
+            isEnabled: course.isActive,
+          }));
+          setCourses(coursesData.filter((course) => course.isEnabled));
+        }
       } catch (error) {
+        Alert.alert('Error', 'Failed to load courses');
         console.error('Error fetching courses', error);
+      } finally {
+        setLoading(prev => ({...prev, courses: false}));
       }
     };
 
     fetchCourses();
-    setSelectedCourse('');
-  }, [selectedFaculty]);
+  }, []);
 
   // Fetch students when course changes
   useEffect(() => {
     if (!selectedCourse) {
       setStudents([]);
+      setEnrolledStudents([]);
       setSelectedStudents([]);
       return;
     }
 
-    const fetchStudents = async () => {
+    const fetchEnrolledStudents = async () => {
+      setLoading(prev => ({...prev, students: true}));
       try {
-        // Fetch students for the department or course - adjust API as needed
-        const res = await api.get(
-          `/students?department=${selectedDepartment}`
-        );
-        setStudents(res.data);
+        // Get all students first
+        const studentsRes = await api.get('/profile/student');
+        if (studentsRes.data) {
+          const studentsData: Student[] = studentsRes.data.map((s: any) => ({
+            id: s.rollNum,
+            name: s.name,
+            rollNumber: s.rollNum,
+            department: s.program,
+          }));
+          setStudents(studentsData);
+
+          // Get enrolled students for the course
+          const enrollmentRes = await api.get(`/course-enrollment/by-course/${selectedCourse}`);
+          if (enrollmentRes.data?.rollNums) {
+            const rollNumbers = enrollmentRes.data.rollNums;
+            const enrolled = studentsData.filter(student => 
+              rollNumbers.includes(student.id)
+            );
+            setEnrolledStudents(enrolled);
+          }
+        }
       } catch (error) {
-        console.error('Error fetching students', error);
+        Alert.alert('Error', 'Failed to load enrolled students');
+        console.error('Error fetching enrolled students', error);
+      } finally {
+        setLoading(prev => ({...prev, students: false}));
       }
     };
 
-    fetchStudents();
+    fetchEnrolledStudents();
     setSelectedStudents([]);
-  }, [selectedCourse, selectedDepartment]);
+  }, [selectedCourse]);
 
   const toggleStudent = (studentId: string) => {
     setSelectedStudents(prev =>
@@ -122,36 +195,47 @@ export default function AssignStudentsScreen() {
   };
 
   const handleAssign = async () => {
-    if (!selectedFaculty || !selectedCourse || selectedStudents.length === 0) return;
+    if (!selectedFaculty || !selectedCourse || selectedStudents.length === 0) {
+      Alert.alert('Error', 'Please select faculty, course, and at least one student');
+      return;
+    }
 
-    setLoading(true);
+    setLoading(prev => ({...prev, assigning: true}));
 
     try {
-      // Construct payload - adjust as per your backend schema
       const payload = {
-        facultyId: selectedFaculty,
         courseId: selectedCourse,
-        assignedRollNums: selectedStudents, // assuming student IDs are roll numbers or adjust accordingly
+        facultyId: selectedFaculty,
+        rollNums: selectedStudents,
       };
 
-      await api.post(
-        '/faculty-student-assigning/admin/assign',
-        payload
-      );
+      const res = await api.post('/faculty-student-assigning/admin/assign', payload);
 
-      setIsAssigned(true);
-      Alert.alert('Success', 'Students assigned successfully!');
-
-      setTimeout(() => {
+      if (res.status === 200) {
+        Alert.alert('Success', 'Students assigned successfully!');
+        // Reset selections
         setSelectedDepartment('');
         setSelectedFaculty('');
         setSelectedCourse('');
-    });
-      Alert.alert('Error', 'Failed to assign students. Please try again.');
+        setSelectedStudents([]);
+      } else {
+        throw new Error(res.data?.message || 'Assignment failed');
+      }
+    } catch (error: any) {
+      console.error('Error assigning students', error);
+      Alert.alert(
+        'Error', 
+        error.message || 'Failed to assign students. Please try again.'
+      );
     } finally {
-      setLoading(false);
+      setLoading(prev => ({...prev, assigning: false}));
     }
   };
+
+  // Filter courses by selected department
+  const filteredCourses = selectedDepartment === 'all' 
+    ? courses 
+    : courses.filter(course => course.department === selectedDepartment);
 
   return (
     <View style={styles.container}>
@@ -165,121 +249,158 @@ export default function AssignStudentsScreen() {
           {/* Department + Faculty */}
           <View style={styles.filters}>
             <Text style={styles.selectedText}>Select Department & Faculty</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={selectedDepartment}
-                onValueChange={setSelectedDepartment}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select Department" value="" />
-                {departments.map(dept => (
-                  <Picker.Item key={dept.id} label={dept.name} value={dept.id} />
-                ))}
-              </Picker>
-            </View>
+            
+            {loading.departments ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedDepartment}
+                  onValueChange={setSelectedDepartment}
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select Department" value="" />
+                  <Picker.Item label="All Departments" value="all" />
+                  {departments.map((dept, index) => (
+                    <Picker.Item key={index} label={dept} value={dept} />
+                  ))}
+                </Picker>
+              </View>
+            )}
 
             {selectedDepartment !== '' && (
-              <View style={styles.pickerContainer}>
-                {facultyList.map(faculty => (
-                  <TouchableOpacity
-                    key={faculty.id}
-                    onPress={() => setSelectedFaculty(faculty.id)}
-                    style={[
-                      styles.studentCard,
-                      selectedFaculty === faculty.id && styles.selectedCard,
-                    ]}
-                  >
-                    <View style={styles.studentInfo}>
-                      <Text style={styles.studentName}>{faculty.name}</Text>
-                      <Text style={styles.departmentName}>Faculty ID: {faculty.id}</Text>
-                    </View>
-                    {selectedFaculty === faculty.id && (
-                      <View style={styles.checkmark}>
-                        <Check size={20} color={COLORS.white} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <>
+                {loading.faculty ? (
+                  <ActivityIndicator size="small" color={COLORS.primary} />
+                ) : facultyList.length > 0 ? (
+                  <View style={styles.pickerContainer}>
+                    {facultyList.map(faculty => (
+                      <TouchableOpacity
+                        key={faculty.id}
+                        onPress={() => setSelectedFaculty(faculty.id)}
+                        style={[
+                          styles.studentCard,
+                          selectedFaculty === faculty.id && styles.selectedCard,
+                        ]}
+                      >
+                        <View style={styles.studentInfo}>
+                          <Text style={styles.studentName}>{faculty.name}</Text>
+                          <Text style={styles.departmentName}>Faculty ID: {faculty.id}</Text>
+                        </View>
+                        {selectedFaculty === faculty.id && (
+                          <View style={styles.checkmark}>
+                            <Check size={20} color={COLORS.white} />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={[styles.departmentName, { textAlign: 'center' }]}>
+                    No faculty found in this department
+                  </Text>
+                )}
+              </>
             )}
           </View>
 
           {/* Course + Students */}
           <View style={styles.filters}>
             <Text style={styles.selectedText}>Select Course and Students</Text>
-            <View style={styles.pickerContainer}>
-              <Picker
-                selectedValue={selectedCourse}
-                onValueChange={setSelectedCourse}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select Course" value="" />
-                {courses.map(course => (
-                  <Picker.Item key={course.id} label={course.name} value={course.id} />
-                ))}
-              </Picker>
-            </View>
+            
+            {loading.courses ? (
+              <ActivityIndicator size="small" color={COLORS.primary} />
+            ) : (
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedCourse}
+                  onValueChange={setSelectedCourse}
+                  style={styles.picker}
+                  enabled={!!selectedDepartment}
+                >
+                  <Picker.Item label={selectedDepartment ? "Select Course" : "Select Department First"} value="" />
+                  {filteredCourses.map(course => (
+                    <Picker.Item 
+                      key={course.id} 
+                      label={`${course.code} - ${course.name}`} 
+                      value={course.id} 
+                    />
+                  ))}
+                </Picker>
+              </View>
+            )}
 
             {selectedCourse !== '' && (
-              <View>
-                {students.map(student => (
-                  <TouchableOpacity
-                    key={student.id}
-                    style={[
-                      styles.studentCard,
-                      selectedStudents.includes(student.id) && styles.selectedCard,
-                    ]}
-                    onPress={() => toggleStudent(student.id)}
-                  >
-                    <View style={styles.studentInfo}>
-                      <Text style={styles.studentName}>{student.name}</Text>
-                      <Text style={styles.departmentName}>
-                        Roll: {student.roll} | Dept: {student.department}
-                      </Text>
-                    </View>
-                    {selectedStudents.includes(student.id) && (
-                      <View style={styles.checkmark}>
-                        <Check size={20} color={COLORS.white} />
-                      </View>
-                    )}
-                  </TouchableOpacity>
-                ))}
-              </View>
+              <>
+                {loading.students ? (
+                  <ActivityIndicator size="large" color={COLORS.primary} style={{ marginVertical: 20 }} />
+                ) : enrolledStudents.length > 0 ? (
+                  <View>
+                    {enrolledStudents.map(student => (
+                      <TouchableOpacity
+                        key={student.id}
+                        style={[
+                          styles.studentCard,
+                          selectedStudents.includes(student.id) && styles.selectedCard,
+                        ]}
+                        onPress={() => toggleStudent(student.id)}
+                      >
+                        <View style={styles.studentInfo}>
+                          <Text style={styles.studentName}>{student.name}</Text>
+                          <Text style={styles.departmentName}>
+                            Roll: {student.rollNumber} | Dept: {student.department}
+                          </Text>
+                        </View>
+                        {selectedStudents.includes(student.id) && (
+                          <View style={styles.checkmark}>
+                            <Check size={20} color={COLORS.white} />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : (
+                  <Text style={[styles.departmentName, { textAlign: 'center', padding: SPACING.md }]}>
+                    No students enrolled in this course
+                  </Text>
+                )}
+              </>
             )}
           </View>
 
           {/* Summary */}
           <View style={styles.selectedCount}>
             <Text style={styles.selectedText}>Assignment Summary</Text>
-            {isAssigned ? (
-              <Text style={[styles.departmentName, { color: COLORS.success }]}>
-                ✅ Assigned Successfully!
-              </Text>
-            ) : (
-              <>
-                <Text style={styles.departmentName}>Course: {selectedCourse || 'N/A'}</Text>
-                <Text style={styles.departmentName}>
-                  Selected Students: {selectedStudents.length}
-                </Text>
-              </>
-            )}
+            <Text style={styles.departmentName}>
+              Course: {courses.find(c => c.id === selectedCourse)?.name || 'N/A'}
+            </Text>
+            <Text style={styles.departmentName}>
+              Faculty: {facultyList.find(f => f.id === selectedFaculty)?.name || 'N/A'}
+            </Text>
+            <Text style={styles.departmentName}>
+              Selected Students: {selectedStudents.length}
+            </Text>
           </View>
 
           {/* Submit Button */}
           <TouchableOpacity
             style={[
               styles.assignButton,
-              (loading || !selectedFaculty || !selectedCourse || selectedStudents.length === 0) &&
+              (loading.assigning || !selectedFaculty || !selectedCourse || selectedStudents.length === 0) &&
                 styles.disabledButton,
             ]}
             onPress={handleAssign}
             disabled={
-              loading || !selectedFaculty || !selectedCourse || selectedStudents.length === 0
+              loading.assigning || !selectedFaculty || !selectedCourse || selectedStudents.length === 0
             }
           >
-            <Text style={styles.assignButtonText}>
-              {loading ? 'Assigning...' : 'Assign Selected Students to Faculty'}
-            </Text>
+            {loading.assigning ? (
+              <ActivityIndicator color={COLORS.white} />
+            ) : (
+              <Text style={styles.assignButtonText}>
+                Assign Selected Students to Faculty
+              </Text>
+            )}
           </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -288,7 +409,6 @@ export default function AssignStudentsScreen() {
 }
 
 const styles = StyleSheet.create({
-
   container: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: {
     padding: SPACING.md,
@@ -324,7 +444,6 @@ const styles = StyleSheet.create({
     borderColor: COLORS.primary,
     borderWidth: 1,
   },
-
   studentInfo: { flex: 1 },
   studentName: {
     fontFamily: FONT.semiBold,
@@ -344,7 +463,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-
   selectedCount: {
     backgroundColor: COLORS.white,
     borderRadius: 8,

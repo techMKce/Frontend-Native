@@ -12,7 +12,7 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Checkbox } from 'react-native-paper';
 import dayjs from 'dayjs';
-import api from '@/service/api'; // Adjust the import path as necessary
+import api from '@/service/api';
 import Header from '@/components/shared/Header';
 
 interface Course {
@@ -44,15 +44,13 @@ export default function ScheduleManagementScreen() {
   const [successMessage, setSuccessMessage] = useState('');
 
   useEffect(() => {
-    // Fetch active courses from backend on mount
     const fetchCourses = async () => {
       try {
-        const response = await api.get('/course/active');
+        const response = await api.get("/course/active");
         const data = response.data;
-        console.log('Fetched courses:', data);
 
         if (!Array.isArray(data)) {
-          Alert.alert('Error', 'Failed to fetch courses');
+          console.error("Expected array but got:", data);
           setCourses([]);
           return;
         }
@@ -111,31 +109,30 @@ export default function ScheduleManagementScreen() {
         courseId: course?.id || '',
         courseName: course?.name || '',
         facultyName: course?.facultyName || '',
-        fromDate: fromDate.toISOString().split('T')[0],
-        toDate: toDate.toISOString().split('T')[0],
+        fromDate: fromDate.toISOString().split("T")[0],
+        toDate: toDate.toISOString().split("T")[0],
       };
     });
 
-    // Prepare form data as per backend expectations
+    const formData = new FormData();
     const courseArray = schedule.map(entry => ({
       courseId: entry.courseId,
       name: entry.courseName,
     }));
 
     const duration = {
-      startDate: fromDate.toISOString().split('T')[0],
-      endDate: toDate.toISOString().split('T')[0],
+      startDate: fromDate.toISOString().split("T")[0],
+      endDate: toDate.toISOString().split("T")[0],
     };
 
-    const formData = new FormData();
-    formData.append('courses', JSON.stringify(courseArray));
-    formData.append('duration', JSON.stringify(duration));
+    formData.append("courses", JSON.stringify(courseArray));
+    formData.append("duration", JSON.stringify(duration));
 
     try {
-      const response = await api.post('/postexam', formData, {
+      const response = await api.post('/attendance/postexam', formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+          'Content-Type': 'multipart/form-data'
+        }
       });
 
       setGeneratedSchedule(response.data);
@@ -152,7 +149,7 @@ export default function ScheduleManagementScreen() {
     if (selectedDate) {
       setFromDate(selectedDate);
       if (dayjs(toDate).isBefore(dayjs(selectedDate))) {
-        setToDate(selectedDate); // Adjust toDate if earlier than fromDate
+        setToDate(selectedDate);
       }
     }
   };

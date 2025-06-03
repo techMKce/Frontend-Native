@@ -177,7 +177,9 @@ export default function StudentManagementScreen() {
 
       <View style={styles.content}>
         <View style={styles.searchContainer}>
-          <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
+          <View style={styles.searchIconContainer}>
+            <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
+          </View>
           <TextInput
             style={styles.searchInput}
             placeholder="Search students..."
@@ -251,7 +253,6 @@ export default function StudentManagementScreen() {
                   <GraduationCap size={16} color={COLORS.gray} />
                   <Text style={styles.detailText}>{item.department}</Text>
                 </View>
-
               </View>
             </View>
           )}
@@ -333,17 +334,21 @@ const styles = StyleSheet.create({
     alignItems: 'center', 
     marginBottom: SPACING.md 
   },
-  searchIcon: { 
-    position: 'absolute', 
-    left: SPACING.md, 
-    zIndex: 1 
+  searchIconContainer: {
+    position: 'absolute',
+    left: SPACING.md,
+    zIndex: 1,
+    padding: SPACING.xs,
+  },
+  searchIcon: {
+    marginRight: SPACING.xs,
   },
   searchInput: {
     flex: 1,
     backgroundColor: COLORS.white,
     borderRadius: 8,
     paddingVertical: SPACING.sm,
-    paddingLeft: SPACING.xl,
+    paddingLeft: SPACING.xxl,
     paddingRight: SPACING.md,
     fontFamily: FONT.regular,
     fontSize: SIZES.md,

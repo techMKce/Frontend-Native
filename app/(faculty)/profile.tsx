@@ -75,7 +75,7 @@ export default function FacultyProfileScreen() {
       setIsLoading(true);
       const endpoint = `/profile/faculty/${authProfile?.profile.id}`;
       
-       const response = await api.get(endpoint);
+      const response = await api.get(endpoint);
       const data = response.data;
       
       // Map backend data to frontend structure
@@ -97,8 +97,8 @@ export default function FacultyProfileScreen() {
         profilePicture: data.image || null,
       };
 
-      // Map work experiences
-      const experiences = data.workExperiences?.map((exp: any, index: number) => ({
+      // Map work experiences (only allow one)
+      const experiences = data.workExperiences?.slice(0, 1).map((exp: any, index: number) => ({
         id: index.toString(),
         organizationName: exp.organizationName || '',
         designation: exp.designation || '',
@@ -146,10 +146,10 @@ export default function FacultyProfileScreen() {
   };
 
   const addWorkExperience = () => {
-    setWorkExperience(prev => [
-      ...prev,
-      { 
-        id: (prev.length + 1).toString(), 
+    // Only add if no experience exists
+    if (workExperience.length === 0) {
+      setWorkExperience([{ 
+        id: '1', 
         organizationName: '', 
         designation: '',
         startYear: '', 
@@ -157,8 +157,8 @@ export default function FacultyProfileScreen() {
         description: '',
         achievements: '',
         researchDetails: ''
-      },
-    ]);
+      }]);
+    }
   };
 
   const removeWorkExperience = (index: number) => {
@@ -185,7 +185,7 @@ export default function FacultyProfileScreen() {
     try {
       setIsLoading(true);
       
-      // Prepare data for API
+      // Prepare data for API (only send first experience if multiple exist)
       const payload = {
         name: profile.name,
         email: profile.email,
@@ -201,7 +201,7 @@ export default function FacultyProfileScreen() {
         bloodGroup: profile.bloodGroup,
         nationality: profile.nationality,
         image: profile.profilePicture,
-        workExperiences: workExperience.map(exp => ({
+        workExperiences: workExperience.slice(0, 1).map(exp => ({
           organizationName: exp.organizationName,
           designation: exp.designation,
           startYear: exp.startYear,
@@ -213,9 +213,7 @@ export default function FacultyProfileScreen() {
       };
 
       const endpoint = `/profile/faculty/${authProfile?.profile.id}`;
-
       const response = await api.put(endpoint, payload);
-
 
       if (response.status === 200) {
         Alert.alert('Success', 'Profile updated successfully');
@@ -247,15 +245,6 @@ export default function FacultyProfileScreen() {
         canEdit={true}
         onEditPress={() => setShowEdit(p => !p)}
       />
-
-      <TouchableOpacity 
-        style={styles.actionButton} 
-        onPress={showEdit ? saveProfile : () => setShowEdit(true)}
-      >
-        <Text style={styles.actionButtonText}>
-          {showEdit ? 'Save Profile' : 'Edit Profile'}
-        </Text>
-      </TouchableOpacity>
 
       {showEdit ? (
         <View style={styles.editSection}>
@@ -291,14 +280,17 @@ export default function FacultyProfileScreen() {
               <TextInput
                 style={[
                   styles.input,
-                  !isFieldEditable(field) && { 
-                    backgroundColor: '#f5f5f5', 
-                    opacity: 0.7 
+                  field === 'experience' && { height: 100, textAlignVertical: 'top' },
+                  {
+                    backgroundColor: isFieldEditable(field) ? '#ffffff' : '#f0f0f0',
+                    opacity: isFieldEditable(field) ? 1 : 0.7,
                   }
                 ]}
                 value={profile[field] || ''}
                 onChangeText={text => handleChange(field as keyof ProfileData, text)}
                 editable={isFieldEditable(field)}
+                multiline={field === 'experience'}
+                numberOfLines={field === 'experience' ? 4 : 1}
               />
             </View>
           ))}
@@ -307,31 +299,30 @@ export default function FacultyProfileScreen() {
             <Text style={[styles.sectionTitle, { marginBottom: SPACING.md }]}>Work Experience</Text>
             {workExperience.map((exp, idx) => (
               <View key={exp.id} style={[styles.infoCard, { marginBottom: SPACING.md }]}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
                   <Text style={styles.label}>Organization</Text>
                   <TouchableOpacity onPress={() => removeWorkExperience(idx)}>
                     <Text style={{ color: COLORS.red, fontWeight: 'bold' }}>Remove</Text>
                   </TouchableOpacity>
                 </View>
+
+                <Text style={styles.label}>Organization Name</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Organization Name"
+                  style={[styles.input, { marginBottom: 12 }]}
                   value={exp.organizationName}
                   onChangeText={text => handleWorkExpChange(idx, 'organizationName', text)}
                 />
 
                 <Text style={styles.label}>Designation</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="Your position"
+                  style={[styles.input, { marginBottom: 12 }]}
                   value={exp.designation}
                   onChangeText={text => handleWorkExpChange(idx, 'designation', text)}
                 />
 
                 <Text style={styles.label}>Start Year</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="e.g. 2015"
+                  style={[styles.input, { marginBottom: 12 }]}
                   keyboardType="numeric"
                   value={exp.startYear}
                   onChangeText={text => handleWorkExpChange(idx, 'startYear', text)}
@@ -339,16 +330,14 @@ export default function FacultyProfileScreen() {
 
                 <Text style={styles.label}>End Year</Text>
                 <TextInput
-                  style={styles.input}
-                  placeholder="e.g. 2019 or Present"
+                  style={[styles.input, { marginBottom: 12 }]}
                   value={exp.endYear}
                   onChangeText={text => handleWorkExpChange(idx, 'endYear', text)}
                 />
 
                 <Text style={styles.label}>Description</Text>
                 <TextInput
-                  style={[styles.input, { height: 60 }]}
-                  placeholder="Brief description"
+                  style={[styles.input, { height: 60, marginBottom: 12 }]}
                   multiline
                   value={exp.description}
                   onChangeText={text => handleWorkExpChange(idx, 'description', text)}
@@ -356,8 +345,7 @@ export default function FacultyProfileScreen() {
 
                 <Text style={styles.label}>Achievements</Text>
                 <TextInput
-                  style={[styles.input, { height: 60 }]}
-                  placeholder="Notable achievements"
+                  style={[styles.input, { height: 60, marginBottom: 12 }]}
                   multiline
                   value={exp.achievements}
                   onChangeText={text => handleWorkExpChange(idx, 'achievements', text)}
@@ -366,7 +354,6 @@ export default function FacultyProfileScreen() {
                 <Text style={styles.label}>Research Details</Text>
                 <TextInput
                   style={[styles.input, { height: 60 }]}
-                  placeholder="Research work details"
                   multiline
                   value={exp.researchDetails}
                   onChangeText={text => handleWorkExpChange(idx, 'researchDetails', text)}
@@ -374,13 +361,23 @@ export default function FacultyProfileScreen() {
               </View>
             ))}
 
-            <TouchableOpacity style={[styles.actionButton, { marginTop: 0 }]} onPress={addWorkExperience}>
-              <Text style={styles.actionButtonText}>Add Work Experience</Text>
+            {workExperience.length === 0 && (
+              <TouchableOpacity style={[styles.actionButton, { marginTop: 0 }]} onPress={addWorkExperience}>
+                <Text style={styles.actionButtonText}>Add Work Experience</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity style={styles.actionButton} onPress={saveProfile}>
+              <Text style={styles.actionButtonText}>Save Profile</Text>
             </TouchableOpacity>
           </View>
         </View>
       ) : (
         <>
+          <TouchableOpacity style={styles.actionButton} onPress={() => setShowEdit(true)}>
+            <Text style={styles.actionButtonText}>Edit Profile</Text>
+          </TouchableOpacity>
+
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Basic Details</Text>
             <View style={styles.infoCard}>
@@ -405,13 +402,11 @@ export default function FacultyProfileScreen() {
             {workExperience.length === 0 ? (
               <Text style={{ fontStyle: 'italic', color: COLORS.gray, padding: SPACING.md }}>No work experience provided.</Text>
             ) : (
-              workExperience.map(exp => (
+              workExperience.slice(0, 1).map(exp => (
                 <View key={exp.id} style={styles.infoCard}>
                   <Text style={[styles.infoLabel, { fontWeight: '600' }]}>{exp.organizationName}</Text>
                   <Text style={styles.infoValue}>{exp.designation}</Text>
-                  <Text style={styles.infoValue}>
-                    {exp.startYear} - {exp.endYear}
-                  </Text>
+                  <Text style={styles.infoValue}>{exp.startYear} - {exp.endYear}</Text>
                   {exp.description && <Text style={styles.infoValue}>{exp.description}</Text>}
                   {exp.achievements && <Text style={styles.infoValue}>Achievements: {exp.achievements}</Text>}
                   {exp.researchDetails && <Text style={styles.infoValue}>Research: {exp.researchDetails}</Text>}
@@ -449,15 +444,18 @@ const styles = StyleSheet.create({
     padding: SPACING.sm,
     alignItems: 'center',
     marginBottom: SPACING.lg,
+    ...SHADOWS.small,
   },
   actionButtonText: {
     color: COLORS.white,
     fontFamily: FONT.semiBold,
+    fontSize: SIZES.md,
   },
   editSection: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
     padding: SPACING.md,
+    ...SHADOWS.small,
   },
   imageContainer: {
     alignItems: 'center',
@@ -467,21 +465,28 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
+    borderWidth: 2,
+    borderColor: COLORS.lightGray,
   },
   imageText: {
     marginTop: 8,
     color: COLORS.primary,
     fontFamily: FONT.medium,
+    fontSize: SIZES.sm,
   },
   label: {
     fontFamily: FONT.medium,
-    color: COLORS.gray,
+    color: COLORS.darkGray,
     marginBottom: 4,
+    fontSize: SIZES.sm,
   },
   input: {
-    backgroundColor: COLORS.lightGray,
-    padding: 10,
+    padding: 12,
     borderRadius: 8,
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    borderWidth: 1,
+    borderColor: '#ccc',
   },
   sectionContainer: {
     marginBottom: SPACING.lg,
@@ -497,15 +502,17 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     borderRadius: 12,
     marginBottom: SPACING.sm,
+    ...SHADOWS.small,
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 12,
   },
   infoLabelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    width: '40%',
   },
   infoLabel: {
     fontFamily: FONT.medium,
@@ -514,8 +521,10 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   infoValue: {
-    fontFamily: FONT.semiBold,
+    fontFamily: FONT.regular,
     fontSize: SIZES.sm,
     color: COLORS.darkGray,
+    width: '55%',
+    textAlign: 'right',
   },
 });

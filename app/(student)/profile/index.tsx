@@ -29,6 +29,8 @@ interface ProfileData {
 interface EducationData {
   college: {
     institution: string;
+    degree: string;
+    program: string;
     startYear: string;
     endYear: string;
     cgpa: string;
@@ -38,19 +40,20 @@ interface EducationData {
     startYear: string;
     endYear: string;
     percentage: string;
+    board: string;
   };
   school: {
     institution: string;
     startYear: string;
     endYear: string;
     percentage: string;
+    board: string;
   };
 }
 
 export default function StudentProfileScreen() {
   const { user, authProfile } = useAuth();
   const [showEdit, setShowEdit] = useState(false);
-  const [showEducation, setShowEducation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState<ProfileData>({
     id: '',
@@ -71,9 +74,28 @@ export default function StudentProfileScreen() {
     profilePicture: null,
   });
   const [education, setEducation] = useState<EducationData>({
-    college: { institution: '', startYear: '', endYear: '', cgpa: '' },
-    highSchool: { institution: '', startYear: '', endYear: '', percentage: '' },
-    school: { institution: '', startYear: '', endYear: '', percentage: '' }
+    college: { 
+      institution: '', 
+      degree: '', 
+      program: '', 
+      startYear: '', 
+      endYear: '', 
+      cgpa: '' 
+    },
+    highSchool: { 
+      institution: '', 
+      startYear: '', 
+      endYear: '', 
+      percentage: '',
+      board: '' 
+    },
+    school: { 
+      institution: '', 
+      startYear: '', 
+      endYear: '', 
+      percentage: '',
+      board: '' 
+    }
   });
 
   useEffect(() => {
@@ -83,7 +105,6 @@ export default function StudentProfileScreen() {
         const response = await api.get(`/students/${authProfile?.profile.id}`);
         const data = response.data;
 
-        // Map backend data to frontend structure
         setProfile({
           id: data.id || '',
           name: data.name || user?.name || '',
@@ -103,26 +124,29 @@ export default function StudentProfileScreen() {
           profilePicture: data.profilePicture || data.image || null,
         });
 
-        // Set education data if available from API
         if (data.education) {
           setEducation({
             college: {
-              institution: data.education.college?.institution || '',
-              startYear: data.education.college?.startYear || '',
-              endYear: data.education.college?.endYear || '',
-              cgpa: data.education.college?.cgpa || ''
+              institution: data.education.college?.institution || data.institutionName || '',
+              degree: data.education.college?.degree || data.degree || '',
+              program: data.education.college?.program || data.program || '',
+              startYear: data.education.college?.startYear || data.startYear || '',
+              endYear: data.education.college?.endYear || data.expectedGraduation || '',
+              cgpa: data.education.college?.cgpa || data.cgpa || ''
             },
             highSchool: {
-              institution: data.education.highSchool?.institution || '',
-              startYear: data.education.highSchool?.startYear || '',
-              endYear: data.education.highSchool?.endYear || '',
-              percentage: data.education.highSchool?.percentage || ''
+              institution: data.education.highSchool?.institution || data.hscSchoolName || '',
+              startYear: data.education.highSchool?.startYear || data.hscStartYear || '',
+              endYear: data.education.highSchool?.endYear || data.hscEndYear || '',
+              percentage: data.education.highSchool?.percentage || data.hscPercentage || '',
+              board: data.education.highSchool?.board || data.hscboardOfEducation || ''
             },
             school: {
-              institution: data.education.school?.institution || '',
-              startYear: data.education.school?.startYear || '',
-              endYear: data.education.school?.endYear || '',
-              percentage: data.education.school?.percentage || ''
+              institution: data.education.school?.institution || data.sslcSchoolName || '',
+              startYear: data.education.school?.startYear || data.sslcStartYear || '',
+              endYear: data.education.school?.endYear || data.sslcEndYear || '',
+              percentage: data.education.school?.percentage || data.sslcPercentage || '',
+              board: data.education.school?.board || data.sslcboardOfEducation || ''
             }
           });
         }
@@ -153,15 +177,24 @@ export default function StudentProfileScreen() {
     }
   };
 
-  const handleChange = (field: keyof ProfileData, value: string) => {
+  const handleProfileChange = (field: keyof ProfileData, value: string) => {
     setProfile(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleEducationChange = (level: keyof EducationData, field: string, value: string) => {
+    setEducation(prev => ({
+      ...prev,
+      [level]: {
+        ...prev[level],
+        [field]: value
+      }
+    }));
   };
 
   const handleSave = async () => {
     try {
       setIsLoading(true);
       
-      // Prepare payload matching backend expectations
       const payload = {
         name: profile.name,
         email: profile.email,
@@ -213,25 +246,6 @@ export default function StudentProfileScreen() {
         onEditPress={() => setShowEdit(p => !p)}
       />
 
-      <View style={styles.buttonsContainer}>
-        <TouchableOpacity 
-          style={styles.actionButton} 
-          onPress={() => showEdit ? handleSave() : setShowEdit(true)}
-        >
-          <Text style={styles.actionButtonText}>
-            {showEdit ? 'Save Profile' : 'Edit Student Details'}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.actionButton, styles.secondaryButton]}
-          onPress={() => setShowEducation(p => !p)}
-        >
-          <Text style={styles.secondaryButtonText}>
-            {showEducation ? 'Hide Education' : 'View Education Details'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
       {showEdit ? (
         <View style={styles.editSection}>
           <TouchableOpacity onPress={pickImage} style={styles.imageContainer}>
@@ -246,10 +260,36 @@ export default function StudentProfileScreen() {
             <Text style={styles.imageText}>Tap to change photo</Text>
           </TouchableOpacity>
 
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+          
+          <View style={{ marginBottom: 12 }}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={[styles.input, styles.disabledInput]}
+              value={profile.name}
+              editable={false}
+            />
+          </View>
+          
+          <View style={{ marginBottom: 12 }}>
+            <Text style={styles.label}>Email</Text>
+            <TextInput
+              style={[styles.input, styles.disabledInput]}
+              value={profile.email}
+              editable={false}
+            />
+          </View>
+          
+          <View style={{ marginBottom: 12 }}>
+            <Text style={styles.label}>Roll Number</Text>
+            <TextInput
+              style={[styles.input, styles.disabledInput]}
+              value={profile.rollNumber}
+              editable={false}
+            />
+          </View>
+
           {[
-            { label: 'Name', field: 'name' },
-            { label: 'Email', field: 'email' },
-            { label: 'Roll Number', field: 'rollNumber' },
             { label: 'Phone', field: 'phone' },
             { label: 'Date of Birth', field: 'dob' },
             { label: 'Gender', field: 'gender' },
@@ -267,14 +307,88 @@ export default function StudentProfileScreen() {
               <TextInput
                 style={styles.input}
                 value={profile[field]}
-                onChangeText={text => handleChange(field as keyof ProfileData, text)}
+                onChangeText={text => handleProfileChange(field as keyof ProfileData, text)}
               />
             </View>
           ))}
+
+          <Text style={styles.sectionTitle}>Education Details</Text>
+          
+          <Text style={styles.subSectionTitle}>College Details</Text>
+          {[
+            { label: 'Institution', field: 'institution', level: 'college' },
+            { label: 'Degree', field: 'degree', level: 'college' },
+            { label: 'Program', field: 'program', level: 'college' },
+            { label: 'Start Year', field: 'startYear', level: 'college' },
+            { label: 'End Year', field: 'endYear', level: 'college' },
+            { label: 'CGPA', field: 'cgpa', level: 'college' },
+          ].map(({ label, field, level }) => (
+            <View key={`college-${field}`} style={{ marginBottom: 12 }}>
+              <Text style={styles.label}>{label}</Text>
+              <TextInput
+                style={styles.input}
+                value={education.college[field]}
+                onChangeText={text => handleEducationChange('college', field, text)}
+              />
+            </View>
+          ))}
+
+          <Text style={styles.subSectionTitle}>12th Standard / Diploma</Text>
+          {[
+            { label: 'Institution', field: 'institution', level: 'highSchool' },
+            { label: 'Start Year', field: 'startYear', level: 'highSchool' },
+            { label: 'End Year', field: 'endYear', level: 'highSchool' },
+            { label: 'Percentage', field: 'percentage', level: 'highSchool' },
+            { label: 'Board', field: 'board', level: 'highSchool' },
+          ].map(({ label, field, level }) => (
+            <View key={`hsc-${field}`} style={{ marginBottom: 12 }}>
+              <Text style={styles.label}>{label}</Text>
+              <TextInput
+                style={styles.input}
+                value={education.highSchool[field]}
+                onChangeText={text => handleEducationChange('highSchool', field, text)}
+              />
+            </View>
+          ))}
+
+          <Text style={styles.subSectionTitle}>10th Standard</Text>
+          {[
+            { label: 'Institution', field: 'institution', level: 'school' },
+            { label: 'Start Year', field: 'startYear', level: 'school' },
+            { label: 'End Year', field: 'endYear', level: 'school' },
+            { label: 'Percentage', field: 'percentage', level: 'school' },
+            { label: 'Board', field: 'board', level: 'school' },
+          ].map(({ label, field, level }) => (
+            <View key={`sslc-${field}`} style={{ marginBottom: 12 }}>
+              <Text style={styles.label}>{label}</Text>
+              <TextInput
+                style={styles.input}
+                value={education.school[field]}
+                onChangeText={text => handleEducationChange('school', field, text)}
+              />
+            </View>
+          ))}
+
+          <TouchableOpacity 
+            style={[styles.saveButton, { marginTop: SPACING.lg }]} 
+            onPress={handleSave}
+          >
+            <Text style={styles.saveButtonText}>Save Profile</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <>
-          {/* Display Basic Info */}
+          <View style={styles.buttonContainer}>
+            <TouchableOpacity 
+              style={styles.actionButton} 
+              onPress={() => setShowEdit(true)}
+            >
+              <Text style={styles.actionButtonText}>
+                Edit Profile
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Basic Information</Text>
             <View style={styles.infoCard}>
@@ -284,13 +398,6 @@ export default function StudentProfileScreen() {
               <InfoRow icon={<CalendarClock size={16} color={COLORS.gray} />} label="Date of Birth" value={profile.dob ? new Date(profile.dob).toLocaleDateString() : 'Not specified'} />
               <InfoRow icon={<User size={16} color={COLORS.gray} />} label="Gender" value={profile.gender || 'Not specified'} />
               <InfoRow icon={<MapPin size={16} color={COLORS.gray} />} label="Address" value={profile.address || 'Not specified'} />
-            </View>
-          </View>
-
-          {/* Academic Info */}
-          <View style={styles.sectionContainer}>
-            <Text style={styles.sectionTitle}>Academic Information</Text>
-            <View style={styles.infoCard}>
               <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Department" value={profile.department || 'Not specified'} />
               <InfoRow icon={<User size={16} color={COLORS.gray} />} label="Batch" value={profile.batch || 'Not specified'} />
               <InfoRow icon={<User size={16} color={COLORS.gray} />} label="Father's Name" value={profile.fathersName || 'Not specified'} />
@@ -299,7 +406,6 @@ export default function StudentProfileScreen() {
             </View>
           </View>
 
-          {/* Social Profiles */}
           <View style={styles.sectionContainer}>
             <Text style={styles.sectionTitle}>Social Profiles</Text>
             <View style={styles.infoCard}>
@@ -307,22 +413,36 @@ export default function StudentProfileScreen() {
               <InfoRow icon={<Linkedin size={16} color={COLORS.gray} />} label="LinkedIn" value={profile.linkedin ? `@${profile.linkedin}` : 'Not provided'} />
             </View>
           </View>
-        </>
-      )}
 
-      {showEducation && (
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>Education Details</Text>
-          {Object.entries(education).map(([key, edu]) => (
-            <View key={key} style={styles.infoCard}>
-              <Text style={styles.infoLabel}>{edu.institution || 'Not specified'}</Text>
-              <Text style={styles.infoValue}>
-                {edu.startYear} - {edu.endYear}
-              </Text>
-              <Text style={styles.infoValue}>{edu.cgpa || edu.percentage || 'Not specified'}</Text>
+          <View style={styles.sectionContainer}>
+            <Text style={styles.sectionTitle}>Education Details</Text>
+            
+            <View style={styles.infoCard}>
+              <Text style={styles.educationHeader}>College</Text>
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Institution" value={education.college.institution || 'Not specified'} />
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Degree" value={education.college.degree || 'Not specified'} />
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Program" value={education.college.program || 'Not specified'} />
+              <InfoRow icon={<CalendarClock size={16} color={COLORS.gray} />} label="Duration" value={`${education.college.startYear} - ${education.college.endYear}`} />
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="CGPA" value={education.college.cgpa || 'Not specified'} />
             </View>
-          ))}
-        </View>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.educationHeader}>12th Standard / Diploma</Text>
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Institution" value={education.highSchool.institution || 'Not specified'} />
+              <InfoRow icon={<CalendarClock size={16} color={COLORS.gray} />} label="Duration" value={`${education.highSchool.startYear} - ${education.highSchool.endYear}`} />
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Percentage" value={education.highSchool.percentage || 'Not specified'} />
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Board" value={education.highSchool.board || 'Not specified'} />
+            </View>
+
+            <View style={styles.infoCard}>
+              <Text style={styles.educationHeader}>10th Standard</Text>
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Institution" value={education.school.institution || 'Not specified'} />
+              <InfoRow icon={<CalendarClock size={16} color={COLORS.gray} />} label="Duration" value={`${education.school.startYear} - ${education.school.endYear}`} />
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Percentage" value={education.school.percentage || 'Not specified'} />
+              <InfoRow icon={<GraduationCap size={16} color={COLORS.gray} />} label="Board" value={education.school.board || 'Not specified'} />
+            </View>
+          </View>
+        </>
       )}
 
       <View style={{ height: 80 }} />
@@ -346,32 +466,30 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     backgroundColor: COLORS.background,
   },
-  buttonsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  buttonContainer: {
     marginBottom: SPACING.lg,
   },
   actionButton: {
-    flex: 1,
     backgroundColor: COLORS.primary,
     borderRadius: 8,
     padding: SPACING.sm,
     alignItems: 'center',
-    marginRight: 8,
-  },
-  secondaryButton: {
-    backgroundColor: COLORS.white,
-    borderColor: COLORS.primary,
-    borderWidth: 1,
-    marginRight: 0,
   },
   actionButtonText: {
     color: COLORS.white,
     fontFamily: FONT.semiBold,
   },
-  secondaryButtonText: {
-    color: COLORS.primary,
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    padding: SPACING.md,
+    alignItems: 'center',
+    marginVertical: SPACING.lg,
+  },
+  saveButtonText: {
+    color: COLORS.white,
     fontFamily: FONT.semiBold,
+    fontSize: SIZES.md,
   },
   editSection: {
     marginBottom: SPACING.lg,
@@ -399,9 +517,15 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   input: {
-    backgroundColor: COLORS.lightGray,
+    backgroundColor: COLORS.white,
     padding: 10,
     borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+  },
+  disabledInput: {
+    backgroundColor:'#f0f0f0',
+    color: COLORS.darkGray,
   },
   sectionContainer: {
     marginBottom: SPACING.lg,
@@ -410,6 +534,13 @@ const styles = StyleSheet.create({
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
     color: COLORS.darkGray,
+    marginBottom: SPACING.sm,
+  },
+  subSectionTitle: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.sm,
+    color: COLORS.primary,
+    marginTop: SPACING.md,
     marginBottom: SPACING.sm,
   },
   infoCard: {
@@ -438,4 +569,10 @@ const styles = StyleSheet.create({
     fontSize: SIZES.sm,
     color: COLORS.darkGray,
   },
+  educationHeader: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.sm,
+    color: COLORS.primary,
+    marginBottom: SPACING.sm,
+  }
 });
