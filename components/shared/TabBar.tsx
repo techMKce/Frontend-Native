@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
 import { usePathname, Link } from 'expo-router';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 
 interface TabItem {
@@ -21,7 +21,8 @@ interface TabBarProps {
 
 const TabBar: React.FC<TabBarProps> = ({ tabs }) => {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { profile } = useAuth();
+  const user = profile?.profile;
 
   const isActive = (path: string) => {
     return pathname === path || pathname.startsWith(path + '/');

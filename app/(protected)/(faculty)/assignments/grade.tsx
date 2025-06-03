@@ -1,0 +1,372 @@
+import React, { useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  TextInput,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+} from 'react-native';
+import Icon from 'react-native-vector-icons/Ionicons';
+import { router, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import api from '@/service/api';
+
+interface StudentSubmission {
+  id: number;
+  studentName: string;
+  studentRollNumber: string;
+  submittedAt: string;
+  grade?: string;
+}
+
+interface Grading {
+  studentRollNumber: string;
+  assignmentId: number;
+  grade: string;
+}
+
+export default function GradeSubmissionsScreen() {
+  const { id: assignmentId } = useLocalSearchParams();
+  const [search, setSearch] = useState('');
+  const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dueDate, setDueDate] = useState<string>('');
+  const [assignmentTitle, setAssignmentTitle] = useState<string>('');
+  const [gradedCount, setGradedCount] = useState<number>(0);
+
+  useEffect(() => {
+    if (!assignmentId) {
+      console.error("Invalid assignment ID.");
+      setLoading(false);
+      return;
+    }
+
+    const fetchData = async () => {
+      try {
+        const [assignmentRes, submissionRes, gradingRes] = await Promise.all([
+          api.get('/assignments/id', { params: { assignmentId } }),
+          api.get('/submissions', { params: { assignmentId } }),
+          api.get('/gradings', { params: { assignmentId } })
+        ]);
+
+        const assignment = assignmentRes.data.assignment;
+        if (assignment) {
+          setAssignmentTitle(assignment.title);
+          setDueDate(assignment.dueDate);
+        } else {
+          console.error("Failed to load assignment details.");
+        }
+
+        const submissionsData: StudentSubmission[] = Array.isArray(submissionRes.data.submissions)
+          ? submissionRes.data.submissions
+          : [];
+
+        const gradingsData: Grading[] = Array.isArray(gradingRes.data.gradings)
+          ? gradingRes.data.gradings
+          : [];
+
+        const mergedSubmissions = submissionsData.map((sub) => ({
+          ...sub,
+          grade: gradingsData.find(
+            (g: Grading) =>
+              g.studentRollNumber === sub.studentRollNumber &&
+              g.assignmentId.toString() === assignmentId
+          )?.grade,
+        }));
+
+        setSubmissions(mergedSubmissions);
+        setGradedCount(mergedSubmissions.filter((s) => s.grade).length);
+      } catch (err) {
+        console.error("Fetch error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [assignmentId]);
+
+  const handleDownloadReport = async () => {
+  try {
+    // First get the download URL from the API
+    const response = await api.get('/gradings/download-url', {
+      params: { assignmentId },
+      responseType: 'blob' // Important for file downloads
+    });
+
+    // If we get a direct download URL from the response
+    if (response.data.url) {
+      await WebBrowser.openBrowserAsync(response.data.url);
+    } 
+    // If we get the file data directly (as blob)
+    else if (response.data instanceof Blob) {
+      // Create a blob URL for the downloaded file
+      const fileURL = URL.createObjectURL(response.data);
+      
+      // Open the file in browser (for PDFs, images, etc.)
+      await WebBrowser.openBrowserAsync(fileURL);
+      
+      // Clean up the object URL after use
+      setTimeout(() => URL.revokeObjectURL(fileURL), 1000);
+    } else {
+      // Fallback to the direct API endpoint if no URL or blob is provided
+      const directDownloadUrl = `${api.defaults.baseURL}/gradings/download?assignmentId=${assignmentId}`;
+      await WebBrowser.openBrowserAsync(directDownloadUrl);
+    }
+  } catch (err: any) {
+    console.error('Download error:', err.message || 'Failed to download report');
+    // Optionally show an alert to the user
+    Alert.alert(
+      'Download Failed',
+      'Could not download the report. Please try again later.'
+    );
+  }
+};
+
+  const filtered = submissions.filter(
+    (s) =>
+      s.studentName.toLowerCase().includes(search.toLowerCase()) ||
+      s.studentRollNumber.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ActivityIndicator size="large" color="#1D4E89" />
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <TouchableOpacity
+        onPress={() => router.push('/(faculty)/assignments')}
+        style={styles.backLink}
+      >
+        <Text style={styles.backLinkText}>← Back to Assignments</Text>
+      </TouchableOpacity>
+
+      <Text style={styles.header}>Grade Submissions</Text>
+      <Text style={styles.subheader}>{assignmentTitle || '—'}</Text>
+
+      <View style={styles.summaryBox}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>Due Date</Text>
+          <Text style={styles.summaryValue}>
+            {dueDate
+              ? new Date(dueDate).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })
+              : '—'}
+          </Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>Submissions</Text>
+          <Text style={styles.summaryValue}>{submissions.length}</Text>
+        </View>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryLabel}>Graded</Text>
+          <Text style={styles.summaryValue}>
+            {gradedCount} / {submissions.length}
+          </Text>
+        </View>
+      </View>
+
+      <TouchableOpacity
+        style={styles.downloadButton}
+        onPress={handleDownloadReport}
+      >
+        <Icon name="download-outline" size={16} color="#fff" />
+        <Text style={styles.downloadButtonText}>Download Report</Text>
+      </TouchableOpacity>
+
+      <TextInput
+        placeholder="Search by student name or roll number..."
+        style={styles.searchInput}
+        value={search}
+        onChangeText={setSearch}
+      />
+      
+      <View style={styles.tableHeader}>
+        <Text style={[styles.headerCell, { flex: 2 }]}>Student</Text>
+        <Text style={[styles.headerCell, { flex: 1 }]}>Roll Number</Text>
+        <Text style={[styles.headerCell, { flex: 1 }]}>Submitted On</Text>
+        <Text style={[styles.headerCell, { flex: 1 }]}>Action</Text>
+      </View>
+
+      <FlatList
+        data={filtered}
+        keyExtractor={(item) => item.id.toString()}
+        renderItem={({ item }) => (
+          <View style={styles.studentCard}>
+            <View style={[styles.studentInfo, { flex: 2, flexDirection: 'row', alignItems: 'center' }]}>
+              <Icon name="person-circle-outline" size={36} color="#888" />
+              <Text style={[styles.studentName, { marginLeft: 10 }]}>{item.studentName}</Text>
+            </View>
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={styles.roll}>{item.studentRollNumber}</Text>
+            </View>
+            <View style={[styles.submittedOn, { flex: 1, justifyContent: 'center' }]}>
+              <Icon name="time-outline" size={14} color="#555" />
+              <Text style={styles.date}>
+                {new Date(item.submittedAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                })}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={() => {
+                router.push({
+                  pathname: item.grade
+                    ? '/(faculty)/assignments/ViewGradedSubmissionScreen'
+                    : '/(faculty)/assignments/GradeSubmissionScreen',
+                  params: { id: item.id.toString() },
+                });
+              }}
+            >
+              <Icon name="document-text-outline" size={16} color="#fff" />
+              <Text style={styles.actionText}>{item.grade ? 'Review' : 'Grade'}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      />
+    </View>
+  );
+}
+
+// Styles remain unchanged
+const styles = StyleSheet.create({
+  container: { flex: 1, padding: 16, backgroundColor: '#F6F6F6' },
+  header: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    marginTop: 32,
+    color: '#1D4E89',
+  },
+  subheader: { fontSize: 16, color: '#777', marginBottom: 12 },
+  summaryBox: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    elevation: 1,
+  },
+  summaryItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  summaryLabel: {
+    fontSize: 12,
+    color: '#888',
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1D4E89',
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#d9e3ea',
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    marginBottom: 4,
+  },
+  headerCell: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#1D4E89',
+  },
+  searchInput: {
+    backgroundColor: '#fff',
+    padding: 10,
+    borderRadius: 10,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  studentCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    elevation: 1,
+  },
+  studentInfo: {
+    flex: 2,
+    marginLeft: 10,
+  },
+  studentName: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  roll: {
+    fontSize: 12,
+    color: '#777',
+    textAlign: 'center',
+  },
+  submittedOn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  date: {
+    fontSize: 12,
+    color: '#555',
+    marginLeft: 4,
+  },
+  actionButton: {
+    backgroundColor: '#1D4E89',
+    flexDirection: 'row',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginLeft: 10,
+  },
+  actionText: {
+    color: '#fff',
+    fontSize: 12,
+    marginLeft: 4,
+  },
+  backLink: {
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  backLinkText: {
+    color: '#1D4E89',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  downloadButton: {
+    backgroundColor: '#1D4E89',
+    flexDirection: 'row',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+  },
+  downloadButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+});

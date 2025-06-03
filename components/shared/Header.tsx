@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { router } from 'expo-router';
 import { Bell, LogOut } from 'lucide-react-native';
 

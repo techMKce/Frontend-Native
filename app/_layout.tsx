@@ -2,18 +2,20 @@ import { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
-import { AuthProvider } from '@/context/AuthContext';
+import { AuthProvider } from '@/context/AuthProvider';
 import { useFonts } from 'expo-font';
 import {
   Poppins_400Regular,
   Poppins_500Medium,
   Poppins_600SemiBold,
-  Poppins_700Bold
+  Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { COLORS } from '@/constants/theme';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function RootLayout() {
+
   useFrameworkReady();
 
   const [fontsLoaded] = useFonts({
@@ -24,21 +26,18 @@ export default function RootLayout() {
   });
 
   // Show a loading screen while fonts are loading
-  if (!fontsLoaded) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
 
+  console.log('RootLayout rendered');
   return (
     <AuthProvider>
       <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-        <Stack.Screen name="(student)" options={{ headerShown: false }} />
-        <Stack.Screen name="(faculty)" options={{ headerShown: false }} />
-        <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+        {/* <Stack.Screen name="index" options={{ title: 'Select Role' }} /> */}
+        <Stack.Screen name="login" options={{ title: 'Login' }} />
+        <Stack.Screen
+          name="forgot-password"
+          options={{ title: 'Forgot Password' }}
+        />
+        <Stack.Screen name="(protected)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />
@@ -46,11 +45,4 @@ export default function RootLayout() {
   );
 }
 
-const styles = StyleSheet.create({
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: COLORS.white,
-  },
-});
+
