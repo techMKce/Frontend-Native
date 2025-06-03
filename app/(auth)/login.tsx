@@ -1,20 +1,31 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, ScrollView, KeyboardAvoidingView, ActivityIndicator, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+  ScrollView,
+  KeyboardAvoidingView,
+  ActivityIndicator,
+  Alert,
+  Image,
+} from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
 import { useLocalSearchParams, Link } from 'expo-router';
-import { ChevronLeft, Lock, Mail } from 'lucide-react-native';
+import { Lock, Mail } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const { login } = useAuth();
   const { role } = useLocalSearchParams<{ role: string }>();
-  
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Set default email based on role
   useEffect(() => {
     if (role === 'student') {
       setEmail('student@university.edu');
@@ -61,22 +72,23 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       style={styles.container}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer}>
-        <View style={styles.header}>
-          <View style={styles.backButtonWrapper}>
-            <Link href="/(auth)" style={styles.backButtonLink}>
-              <View style={styles.backButtonContent}>
-                <ChevronLeft size={24} color={COLORS.primary} />
-                <Text style={styles.backText}>Back</Text>
-              </View>
-            </Link>
-          </View>
-          <Text style={styles.title}>{getRoleTitle()}</Text>
-        </View>
+      <View style={styles.header}>
+        <Image
+          source={{
+            uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSEO0BVBpiuKJgJIwF9Xe_Pu4gLagCNX44DXA&s',
+          }}
+          style={styles.navLogo}
+        />
+        <Text style={styles.title}>{getRoleTitle()}</Text>
+      </View>
 
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+      >
         <View style={styles.formContainer}>
           <View style={styles.inputContainer}>
             <Mail size={20} color={COLORS.gray} style={styles.inputIcon} />
@@ -105,7 +117,7 @@ export default function LoginScreen() {
 
           {error && <Text style={styles.errorText}>{error}</Text>}
 
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.loginButton}
             onPress={handleLogin}
             disabled={isLoading}
@@ -118,7 +130,7 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.forgotPasswordWrapper}>
-            <Link 
+            <Link
               href={{ pathname: '/(auth)/forgot-password', params: { email } }}
               style={styles.forgotPasswordLink}
             >
@@ -142,39 +154,34 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.white,
   },
-  scrollContainer: {
-    flexGrow: 1,
-    padding: SPACING.lg,
-    justifyContent: 'space-between',
-  },
   header: {
-    marginBottom: SPACING.xl,
-  },
-  backButtonWrapper: {
-    marginBottom: SPACING.md,
-  },
-  backButtonLink: {
-    width: 'auto',
-  },
-  backButtonContent: {
-    flexDirection: 'row',
     alignItems: 'center',
+    paddingTop: 50,
+    paddingBottom: 10,
+    backgroundColor: COLORS.white,
   },
-  backText: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.sm,
-    color: COLORS.primary,
-    marginLeft: SPACING.xs,
+  navLogo: {
+    width: 150,
+    height: 150,
+    borderRadius: 40,
+    marginBottom: 8,
   },
   title: {
     fontFamily: FONT.bold,
     fontSize: SIZES.xl,
     color: COLORS.darkGray,
+    textAlign: 'center',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'space-between',
+    paddingHorizontal: SPACING.lg,
   },
   formContainer: {
     width: '100%',
     maxWidth: 400,
     alignSelf: 'center',
+    marginTop: SPACING.lg,
     ...Platform.select({
       web: {
         width: 400,
@@ -206,6 +213,7 @@ const styles = StyleSheet.create({
     fontSize: SIZES.sm,
     color: COLORS.error,
     marginBottom: SPACING.md,
+    textAlign: 'center',
   },
   loginButton: {
     backgroundColor: COLORS.primary,
@@ -232,8 +240,9 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
   },
   footer: {
-    marginTop: SPACING.xl,
+    marginTop: SPACING.lg,
     alignItems: 'center',
+    marginBottom: SPACING.lg,
   },
   helpText: {
     fontFamily: FONT.regular,

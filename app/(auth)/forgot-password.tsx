@@ -1,14 +1,25 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Platform, ScrollView, KeyboardAvoidingView, ActivityIndicator } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Platform,
+  ScrollView,
+  KeyboardAvoidingView,
+  ActivityIndicator,
+  Image,
+} from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import { useAuth } from '@/context/AuthContext';
-import { useLocalSearchParams, Link, router } from 'expo-router';
-import { ChevronLeft, Mail, CircleCheck as CheckCircle } from 'lucide-react-native';
+import { useLocalSearchParams, router } from 'expo-router';
+import { Mail, CircleCheck as CheckCircle } from 'lucide-react-native';
 
 export default function ForgotPasswordScreen() {
   const { forgotPassword } = useAuth();
   const params = useLocalSearchParams<{ email: string }>();
-  
+
   const [email, setEmail] = useState(params.email || '');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -44,10 +55,11 @@ export default function ForgotPasswordScreen() {
     >
       <ScrollView contentContainerStyle={styles.scrollContainer}>
         <View style={styles.header}>
-          <TouchableOpacity style={styles.backButton} onPress={handleBackToLogin}>
-            <ChevronLeft size={24} color={COLORS.primary} />
-            <Text style={styles.backText}>Back to Login</Text>
-          </TouchableOpacity>
+          <Image
+            source={{ uri: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSEO0BVBpiuKJgJIwF9Xe_Pu4gLagCNX44DXA&s' }}
+            style={styles.logo}
+            resizeMode="contain"
+          />
           <Text style={styles.title}>Forgot Password</Text>
         </View>
 
@@ -59,7 +71,7 @@ export default function ForgotPasswordScreen() {
               <Text style={styles.successText}>
                 Password reset instructions have been sent to your email address.
               </Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.backToLoginButton}
                 onPress={handleBackToLogin}
               >
@@ -87,7 +99,7 @@ export default function ForgotPasswordScreen() {
 
               {error && <Text style={styles.errorText}>{error}</Text>}
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.resetButton}
                 onPress={handleResetPassword}
                 disabled={isLoading}
@@ -101,6 +113,13 @@ export default function ForgotPasswordScreen() {
             </>
           )}
         </View>
+        {/* Bottom center "Back to Login" link */}
+
+        {!isSuccess && (
+          <TouchableOpacity style={styles.bottomBackLink} onPress={handleBackToLogin}>
+            <Text style={styles.bottomBackLinkText}>Back to Login</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={styles.footer}>
           <Text style={styles.helpText}>
@@ -108,7 +127,9 @@ export default function ForgotPasswordScreen() {
           </Text>
         </View>
       </ScrollView>
+
     </KeyboardAvoidingView>
+
   );
 }
 
@@ -123,23 +144,21 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   header: {
+    alignItems: 'center',
     marginBottom: SPACING.xl,
   },
-  backButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  backText: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.sm,
-    color: COLORS.primary,
-    marginLeft: SPACING.xs,
+  logo: {
+    width: 150,
+    height: 150,
+    borderRadius: 40,
+    marginBottom: 16,
+    marginTop: 20,
   },
   title: {
     fontFamily: FONT.bold,
     fontSize: SIZES.xl,
     color: COLORS.darkGray,
+    textAlign: 'center',
   },
   formContainer: {
     width: '100%',
@@ -156,6 +175,7 @@ const styles = StyleSheet.create({
     fontSize: SIZES.md,
     color: COLORS.gray,
     marginBottom: SPACING.lg,
+    textAlign: 'center',
   },
   inputContainer: {
     flexDirection: 'row',
@@ -182,6 +202,7 @@ const styles = StyleSheet.create({
     fontSize: SIZES.sm,
     color: COLORS.error,
     marginBottom: SPACING.md,
+    textAlign: 'center',
   },
   resetButton: {
     backgroundColor: COLORS.primary,
@@ -234,5 +255,16 @@ const styles = StyleSheet.create({
     fontSize: SIZES.xs,
     color: COLORS.gray,
     textAlign: 'center',
+  },
+  bottomBackLink: {
+    alignItems: 'center',
+    paddingVertical: SPACING.sm,
+    marginBottom: 250,
+  },
+  bottomBackLinkText: {
+    fontFamily: FONT.medium,
+    fontSize: SIZES.sm,
+    color: COLORS.primary,
+    textDecorationLine: 'underline',
   },
 });
