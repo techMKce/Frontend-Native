@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image,
 import * as ImagePicker from 'expo-image-picker';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import ProfileHeader from '@/components/shared/ProfileHeader';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import { Mail, Phone, CalendarClock, User, MapPin, GraduationCap, Github, Linkedin } from 'lucide-react-native';
 import api from '@/service/api';
 
@@ -48,7 +48,9 @@ interface EducationData {
 }
 
 export default function StudentProfileScreen() {
-  const { user, authProfile } = useAuth();
+  const { authProfile } = useAuth();
+  const user = authProfile?.profile;
+
   const [showEdit, setShowEdit] = useState(false);
   const [showEducation, setShowEducation] = useState(false);
   const [isLoading, setIsLoading] = useState(true);

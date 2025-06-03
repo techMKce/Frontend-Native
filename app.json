@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "UMS-React-Native",
-    "slug": "ums-react-native",
+    "name": "Zeno UMS",
+    "slug": "zenoUMS",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSEO0BVBpiuKJgJIwF9Xe_Pu4gLagCNX44DXA&s",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSEO0BVBpiuKJgJIwF9Xe_Pu4gLagCNX44DXA&s"
     },
     "plugins": ["expo-router", "expo-font", "expo-web-browser"],
     "experiments": {

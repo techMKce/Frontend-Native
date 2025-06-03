@@ -139,9 +139,7 @@ export default function ResubmitAssignmentScreen() {
       setSelectedFile(null);
       setIsResubmitted(false);
       setSubmission(null);
-      setTimeout(() => {
-        router.push('/(student)/assignments');
-      }, 1000);
+      router.push('/(student)/assignments');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'An error occurred while unsubmitting the assignment');
     }

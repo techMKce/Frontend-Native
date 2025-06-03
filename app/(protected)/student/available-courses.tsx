@@ -73,10 +73,8 @@ export default function AvailableCoursesScreen() {
 
   const handleEnroll = (courseId: string) => {
     setEnrollingCourseId(courseId);
-    setTimeout(() => {
       setEnrolledCourses((prev) => [...prev, courseId]);
       setEnrollingCourseId(null);
-    }, 1000);
   };
 
   const filteredCourses = mockCourses.filter(

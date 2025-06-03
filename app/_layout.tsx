@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
@@ -10,9 +10,6 @@ import {
   Poppins_600SemiBold,
   Poppins_700Bold,
 } from '@expo-google-fonts/poppins';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { COLORS } from '@/constants/theme';
-import { useAuth } from '@/hooks/useAuth';
 
 export default function RootLayout() {
 
@@ -31,13 +28,12 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <Stack screenOptions={{ headerShown: false }}>
-        {/* <Stack.Screen name="index" options={{ title: 'Select Role' }} /> */}
+        <Stack.Screen name="(protected)" options={{ headerShown: false }} />
         <Stack.Screen name="login" options={{ title: 'Login' }} />
         <Stack.Screen
           name="forgot-password"
           options={{ title: 'Forgot Password' }}
         />
-        <Stack.Screen name="(protected)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />

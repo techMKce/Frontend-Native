@@ -17,7 +17,6 @@ import {
   SHADOWS,
 } from '@/constants/theme';
 import Header from '@/components/shared/Header';
-import { useAuth } from '@/context/AuthContext';
 import {
   Calendar,
   BookOpen,
@@ -27,10 +26,8 @@ import {
 } from 'lucide-react-native';
 import api from '@/service/api';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/hooks/useAuth';
 
-/* -------------------------------------------------------------------------- */
-/*                             ─── COMPONENT ───                              */
-/* -------------------------------------------------------------------------- */
 
 type AttendanceSessionData = {
   session: string;
@@ -52,7 +49,8 @@ type AttendanceData = {
 };
 
 export default function StudentDashboard() {
-  const { user } = useAuth();
+  const { profile } = useAuth();
+  const user = profile?.profile;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [attendanceData, setAttendanceData] = useState<{

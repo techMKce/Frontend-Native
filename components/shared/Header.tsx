@@ -25,13 +25,13 @@ const Header: React.FC<HeaderProps> = ({
   showNotification = true,
   showProfile = true,
 }) => {
-  const { user, logout } = useAuth();
+  const { profile, signOut } = useAuth();
   const [profileModalVisible, setProfileModalVisible] = useState(false);
 
   const handleLogout = async () => {
     try {
-      await logout();
-      router.replace('/(auth)');
+      await signOut();
+      router.replace('/login');
     } catch (error) {
       console.error('Logout failed:', error);
     }
@@ -40,12 +40,12 @@ const Header: React.FC<HeaderProps> = ({
   const navigateToProfile = () => {
     setProfileModalVisible(false);
 
-    if (user?.role === 'student') {
-      router.push('/(student)/profile');
-    } else if (user?.role === 'faculty') {
-      router.push('/(faculty)/profile');
-    } else if (user?.role === 'admin') {
-      router.push('/(admin)');
+    if (profile?.profile?.role === 'STUDENT') {
+      router.push('/student/profile');
+    } else if (profile?.profile?.role === 'FACULTY') {
+      router.push('/faculty/profile');
+    } else if (profile?.profile?.role === 'ADMIN') {
+      router.push('/admin');
     }
   };
 
@@ -63,7 +63,7 @@ const Header: React.FC<HeaderProps> = ({
             </TouchableOpacity>
           )}
 
-          {showProfile && user && (
+          {showProfile && profile && (
             <TouchableOpacity
               style={styles.profileButton}
               onPress={() => setProfileModalVisible(true)}
@@ -71,7 +71,6 @@ const Header: React.FC<HeaderProps> = ({
               <Image
                 source={{
                   uri:
-                    user.profilePicture ||
                     'https://images.pexels.com/photos/771742/pexels-photo-771742.jpeg',
                 }}
                 style={styles.profileImage}
@@ -100,14 +99,13 @@ const Header: React.FC<HeaderProps> = ({
               <Image
                 source={{
                   uri:
-                    user?.profilePicture ||
                     'https://images.pexels.com/photos/771742/pexels-photo-771742.jpeg',
                 }}
                 style={styles.profileModalImage}
               />
               <View style={styles.profileInfo}>
-                <Text style={styles.profileName}>{user?.name}</Text>
-                <Text style={styles.profileRole}>{user?.role}</Text>
+                <Text style={styles.profileName}>{profile?.profile?.name}</Text>
+                <Text style={styles.profileRole}>{profile?.profile?.role}</Text>
               </View>
             </View>
 

@@ -48,7 +48,7 @@ type ConfirmNewPassword = (token: string, password: string) => Promise<void>;
 const useAuth = () => ({
   confirmNewPassword: (async (token: string, password: string) => {
     console.log(`Confirmed: ${token}, ${password}`);
-    return new Promise<void>((resolve) => setTimeout(resolve, 1000));
+    return new Promise<void>((resolve) => setTimeout(resolve, 100));
   }) as ConfirmNewPassword,
 });
 

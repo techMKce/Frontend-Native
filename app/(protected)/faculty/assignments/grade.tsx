@@ -110,7 +110,7 @@ export default function GradeSubmissionsScreen() {
       await WebBrowser.openBrowserAsync(fileURL);
       
       // Clean up the object URL after use
-      setTimeout(() => URL.revokeObjectURL(fileURL), 1000);
+       URL.revokeObjectURL(fileURL);
     } else {
       // Fallback to the direct API endpoint if no URL or blob is provided
       const directDownloadUrl = `${api.defaults.baseURL}/gradings/download?assignmentId=${assignmentId}`;

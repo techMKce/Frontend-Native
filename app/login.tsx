@@ -55,18 +55,18 @@ export default function LoginScreen() {
     }
   };
 
-  const getRoleTitle = () => {
-    switch (role) {
-      case 'student':
-        return 'Student Login';
-      case 'faculty':
-        return 'Faculty Login';
-      case 'ADMIN':
-        return 'Admin Login';
-      default:
-        return 'Login';
-    }
-  };
+  // const getRoleTitle = () => {
+  //   switch (role) {
+  //     case '':
+  //       return 'Student Login';
+  //     case 'faculty':
+  //       return 'Faculty Login';
+  //     case 'ADMIN':
+  //       return 'Admin Login';
+  //     default:
+  //       return 'Login';
+  //   }
+  // };
 
   return (
     <KeyboardAvoidingView
@@ -80,7 +80,7 @@ export default function LoginScreen() {
           }}
           style={styles.navLogo}
         />
-        <Text style={styles.title}>{getRoleTitle()}</Text>
+        <Text style={styles.title}>Login</Text>
       </View>
 
       <ScrollView
@@ -129,10 +129,10 @@ export default function LoginScreen() {
 
           <View style={styles.forgotPasswordWrapper}>
             <Link
-              href={{ pathname: '/(auth)/forgot-password', params: { email } }}
+              href={{ pathname: '/forgot-password', params: { email } }}
               style={styles.forgotPasswordLink}
             >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              <Text style={styles.forgotPasswordText}>Forgot Password ?</Text>
             </Link>
           </View>
         </View>

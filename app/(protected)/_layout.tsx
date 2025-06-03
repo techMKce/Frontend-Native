@@ -5,13 +5,21 @@ import { useEffect } from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 export default function ProtectedLayout() {
   const router = useRouter();
-  const { isLoading, isAuthenticated, profile } = useAuth();
-  if (isLoading) {
+  const { isReady, isAuthenticated, profile } = useAuth();
+
+  console.log("isReady "+ isReady);
+  console.log("isAuthenticated "+ isAuthenticated)
+
+  if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
       </View>
     );
+  }
+
+  if(!isAuthenticated){
+    return <Redirect href="/login"/> 
   }
 
   useEffect(() => {
@@ -20,11 +28,11 @@ export default function ProtectedLayout() {
       console.log('Redirecting based on role:', role);
 
       if (role === 'STUDENT') {
-        router.replace('/(protected)/(student)');
+        router.replace('/student');
       } else if (role === 'FACULTY') {
-        router.replace('/(protected)/(faculty)');
+        router.replace('/faculty');
       } else if (role === 'ADMIN') {
-        router.replace('/(protected)/(admin)');
+        router.replace('/admin');
       } else {
         console.error('Unknown role:', role);
       }
@@ -33,9 +41,9 @@ export default function ProtectedLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(student)" options={{ headerShown: false }} />
-      <Stack.Screen name="(faculty)" options={{ headerShown: false }} />
-      <Stack.Screen name="(admin)" options={{ headerShown: false }} />
+      <Stack.Screen name="student" options={{ headerShown: false }} />
+      <Stack.Screen name="faculty" options={{ headerShown: false }} />
+      <Stack.Screen name="admin" options={{ headerShown: false }} />
     </Stack>
   );
 }

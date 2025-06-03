@@ -9,12 +9,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<LoginResponse | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const checkAuthStatus = async () => {
       const token = await AsyncStorage.getItem("token");
-
-      if (!token) {
+      console.log("Token from AsyncStorage:", token)
+      if (token == null) {
         setIsLoading(false);
         setIsAuthenticated(false);
         return;
@@ -33,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setIsAuthenticated(false);
       } finally {
         setIsLoading(false);
+        setIsReady(true);
       }
     };
 
@@ -90,6 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     <AuthContext.Provider
       value={{
         profile,
+        isReady,
         isAuthenticated,
         isLoading,
         signIn,
