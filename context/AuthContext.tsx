@@ -5,6 +5,7 @@ import { createContext } from "react";
 
 interface AuthContextType {
   profile: LoginResponse | null;
+  isReady : boolean;
   isAuthenticated: boolean;
   isLoading: boolean;
   signIn: (loginData : LoginRequest) => Promise<void>;

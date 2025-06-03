@@ -16,37 +16,37 @@ export default function AdminTabsLayout() {
   const tabs = [
     {
       name: 'index',
-      href: '/(admin)',
+      href: '/admin',
       icon: LayoutGrid,
       label: 'Dashboard',
     },
     {
       name: 'faculty',
-      href: '/(admin)/faculty',
+      href: '/admin/faculty',
       icon: Users,
       label: 'Faculty',
     },
     {
       name: 'student',
-      href: '/(admin)/student',
+      href: '/admin/student',
       icon: GraduationCap,
       label: 'Student',
     },
     {
       name: 'courses',
-      href: '/(admin)/courses',
+      href: '/admin/courses',
       icon: BookOpen,
       label: 'Courses',
     },
     {
       name: 'assign',
-      href: '/(admin)/assign',
+      href: '/admin/assign',
       icon: UserPlus,
       label: 'Assign',
     },
     {
       name: 'schedule',
-      href: '/(admin)/schedule',
+      href: '/admin/schedule',
       icon: CalendarRangeIcon,
       label: 'Schedule',
     },
