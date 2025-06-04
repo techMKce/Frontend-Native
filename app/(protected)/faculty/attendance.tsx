@@ -53,7 +53,8 @@ type AttendanceRecord = {
 };
 
 const AttendanceScreen = () => {
-  const { user } = useAuth();
+  const { profile } = useAuth();
+  const user = profile?.profile;
   const [filters, setFilters] = useState({
     batch: '', course: '', department: '', semester: '', session: 'forenoon', date: new Date()
   });

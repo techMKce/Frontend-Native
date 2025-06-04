@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, Activity
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import { Search, Mail, Phone, GraduationCap } from 'lucide-react-native';
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 import api from '@/service/api';
 
 interface Student {
@@ -28,7 +28,7 @@ interface AssignedStudentResponse {
 }
 
 export default function FacultyStudentsScreen() {
-  const { authProfile } = useAuth();
+  const { profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -39,13 +39,13 @@ export default function FacultyStudentsScreen() {
       setIsLoading(true);
       setError(null);
 
-      if (!authProfile?.profile?.id) {
+      if (!profile?.profile?.id) {
         throw new Error('Faculty ID not available');
       }
 
       // Step 1: Fetch assigned roll numbers
       const response = await api.get<AssignedStudentResponse[]>(
-        `/faculty-student-assigning/admin/faculty/${authProfile.profile.id}`
+        `/faculty-student-assigning/admin/faculty/${profile.profile.id}`
       );
 
       const rollNumbers = response.data.flatMap((item) => item.assignedRollNums);
@@ -89,7 +89,7 @@ export default function FacultyStudentsScreen() {
 
   useEffect(() => {
     fetchAssignedStudents();
-  }, [authProfile]);
+  }, [profile]);
 
   const filteredStudents = students.filter(
     (student) =>
@@ -110,7 +110,7 @@ export default function FacultyStudentsScreen() {
   if (error) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={{ color: COLORS.red, marginBottom: SPACING.md }}>{error}</Text>
+        <Text style={{ color: COLORS.warning, marginBottom: SPACING.md }}>{error}</Text>
         <TouchableOpacity 
           style={styles.retryButton}
           onPress={fetchAssignedStudents}

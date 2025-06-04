@@ -15,6 +15,7 @@ import { Picker } from '@react-native-picker/picker'; // <-- Import Picker
 import api from '@/service/api'; // Your configured Axios instance
 import { COLORS, SPACING, FONT, SIZES, SHADOWS } from '@/constants/theme';
 import { useRouter } from 'expo-router';
+import Header from '@/components/shared/Header';
 
 type Course = {
   course_id: string;
@@ -171,36 +172,38 @@ const Courses = () => {
   };
 
   const renderCourse = ({ item }: { item: Course }) => (
-    <View style={styles.courseCard}>
-      <Text style={styles.courseName}>{item.courseTitle}</Text>
-      <Text style={styles.courseDescription}>{item.courseDescription}</Text>
-      <Text style={styles.courseDescription}>Instructor: {item.instructorName}</Text>
-      <View style={styles.courseStats}>
-        <View style={styles.statItem}>
-          <Ionicons name="time-outline" size={16} color={COLORS.gray} />
-          <Text style={styles.statText}>{item.duration} weeks</Text>
-        </View>
-        <View style={styles.statItem}>
-          <Ionicons name="book-outline" size={16} color={COLORS.gray} />
-          <Text style={styles.statText}>{item.credit} credits</Text>
-        </View>
+    console.log(`Rendering course: ${item.course_id}`),
+  <TouchableOpacity 
+    style={styles.courseCard}
+    onPress={() => router.push(`/faculty/coursedetails?courseId=${item.course_id}`)}
+  >
+    <Text style={styles.courseName}>{item.courseTitle}</Text>
+    <Text style={styles.courseDescription}>{item.courseDescription}</Text>
+    <Text style={styles.courseDescription}>Instructor: {item.instructorName}</Text>
+    <View style={styles.courseStats}>
+      <View style={styles.statItem}>
+        <Ionicons name="time-outline" size={16} color={COLORS.gray} />
+        <Text style={styles.statText}>{item.duration} weeks</Text>
       </View>
-      <View style={styles.cardButtons}>
-        <TouchableOpacity onPress={() => router.push('/coursedetails')}>
-          <Text style={{ color: COLORS.primary }}>View</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => handleEdit(item)} style={styles.editButton}>
-          <Text style={{ color: COLORS.primary }}>Edit</Text>
-        </TouchableOpacity>
-        <TouchableOpacity onPress={() => handleDelete(item.course_id)}>
-          <Text style={{ color: 'red' }}>Delete</Text>
-        </TouchableOpacity>
+      <View style={styles.statItem}>
+        <Ionicons name="book-outline" size={16} color={COLORS.gray} />
+        <Text style={styles.statText}>{item.credit} credits</Text>
       </View>
     </View>
-  );
+    <View style={styles.cardButtons}>
+      <TouchableOpacity onPress={() => handleEdit(item)} style={styles.editButton}>
+        <Text style={{ color: COLORS.primary }}>Edit</Text>
+      </TouchableOpacity>
+      <TouchableOpacity onPress={() => handleDelete(item.course_id)}>
+        <Text style={{ color: 'red' }}>Delete</Text>
+      </TouchableOpacity>
+    </View>
+  </TouchableOpacity>
+);
 
   return (
     <View style={styles.container}>
+      <Header title="Courses" />
       <View style={styles.content}>
         <View style={styles.searchContainer}>
           <Ionicons name="search" size={20} style={styles.searchIcon} color={COLORS.gray} />

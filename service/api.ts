@@ -4,7 +4,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const api = axios.create({
-  baseURL: 'http://192.168.43.48:8080/api/v1', // use actual IP for device testing
+  baseURL: 'http://192.168.137.111:8080/api/v1', // use actual IP for device testing
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
@@ -18,7 +18,6 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('Request config:', config);
     return config;
   },
   (error) => Promise.reject(error)
