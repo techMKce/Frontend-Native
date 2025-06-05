@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,57 +8,93 @@ import {
   Modal,
   TouchableOpacity,
   ScrollView,
+  RefreshControl,
 } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING } from '@/constants/theme';
 import Header from '@/components/shared/Header';
-import CourseCard, { Course } from '@/components/student/CourseCard';
+import CourseCard from '@/components/student/CourseCard';
 import { TriangleAlert as AlertTriangle } from 'lucide-react-native';
+import api from '@/service/api';
+import { useFocusEffect } from '@react-navigation/native';
 
-// Initial mock data
-const mockEnrolledCourses: Course[] = [];
-const mockAvailableCourses: Course[] = [
-  {
-    id: '1',
-    name: 'Introduction to Computer Science',
-    description: 'Basics of computer science, algorithms, and programming.',
-    faculty: 'Dr. John Smith',
-    credits: 4,
-    duration: '16 weeks',
-    image: 'https://images.pexels.com/photos/2582937/pexels-photo-2582937.jpeg',
-    enrolled: false,
-  },
-  {
-    id: '2',
-    name: 'Artificial Intelligence',
-    description: 'AI concepts, machine learning, and neural networks.',
-    faculty: 'Prof. Michael Lee',
-    credits: 4,
-    duration: '16 weeks',
-    image: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg',
-    enrolled: false,
-  },
-  {
-    id: '3',
-    name: 'Data Structures',
-    description: 'Arrays, stacks, queues, linked lists, and trees.',
-    faculty: 'Prof. Jane Doe',
-    credits: 3,
-    duration: '12 weeks',
-    image: 'https://images.pexels.com/photos/2566581/pexels-photo-2566581.jpeg',
-    enrolled: false,
-  },
-];
+interface Course {
+  id: string;
+  name: string;
+  description: string;
+  faculty: string;
+  credits: number;
+  duration: string;
+  image: string;
+  enrolled: boolean;
+}
 
-export default function CoursesScreen() {
-  const [loading, setLoading] = useState(false);
+interface StudentCourseInfoDto {
+  courseId: string;
+  courseName?: string;
+  courseDescription?: string;
+  instructorName?: string;
+  credits?: number;
+  duration?: string;
+  imageUrl?: string;
+}
+
+export default function EnrolledCoursesScreen() {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [dropModalVisible, setDropModalVisible] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [enrolledCourses, setEnrolledCourses] = useState(mockEnrolledCourses);
-  const [availableCourses, setAvailableCourses] = useState(mockAvailableCourses);
+  const [enrolledCourses, setEnrolledCourses] = useState<Course[]>([]);
+  const [droppingCourseId, setDroppingCourseId] = useState<string | null>(null);
+  const [rollNum, setRollNum] = useState<string>('');
 
-  const handleEnrollCourse = (course: Course) => {
-    setAvailableCourses(prev => prev.filter(c => c.id !== course.id));
-    setEnrolledCourses(prev => [...prev, { ...course, enrolled: true }]);
+  
+  // First fetch the student's roll number
+  const fetchStudentRollNum = async () => {
+    try {
+      const response = await api.get('/student/profile/${rollnum}'); // Adjust this endpoint to your actual API
+      setRollNum(response.data.rollNum);
+      return response.data.rollNum;
+    } catch (error) {
+      console.error('Error fetching student roll number:', error);
+      throw error;
+    }
+  };
+
+  const fetchEnrolledCourses = async () => {
+    try {
+  setLoading(true);
+  const rollNum = await fetchStudentRollNum();
+  
+  const response = await api.get(`/course-enrollment/by-student/${rollNum}`);
+  
+  const courses = response.data.map((item: StudentCourseInfoDto) => ({
+    id: item.courseId,
+    name: item.courseName || 'Unnamed Course',
+    description: item.courseDescription || 'No description available',
+    faculty: item.instructorName || 'Staff',
+    credits: item.credits || 0,
+    duration: item.duration || '1 semester',
+    image: item.imageUrl || 'https://images.pexels.com/photos/7095/people-coffee-notes-tea.jpg',
+    enrolled: true
+  }));
+  
+  setEnrolledCourses(courses);
+} catch (error) {
+  console.error('Error fetching enrolled courses:', error);
+} finally {
+  setLoading(false);
+}
+  };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      fetchEnrolledCourses();
+    }, [])
+  );
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchEnrolledCourses();
   };
 
   const handleDropCourse = (course: Course) => {
@@ -66,19 +102,44 @@ export default function CoursesScreen() {
     setDropModalVisible(true);
   };
 
-  const confirmDropCourse = () => {
-    if (selectedCourse) {
+  const confirmDropCourse = async () => {
+    if (!selectedCourse || !rollNum) return;
+    
+    try {
+      setDroppingCourseId(selectedCourse.id);
+      // Call API to drop the course
+      await api.delete(`/course-enrollment`, {
+        data: {
+          courseId: selectedCourse.id,
+          rollNum: rollNum
+        }
+      });
+      
+      // Update local state
       setEnrolledCourses(prev => prev.filter(c => c.id !== selectedCourse.id));
-      setAvailableCourses(prev => [...prev, { ...selectedCourse, enrolled: false }]);
+    } catch (error) {
+      console.error('Error dropping course:', error);
+    } finally {
+      setDropModalVisible(false);
+      setDroppingCourseId(null);
+      setSelectedCourse(null);
     }
-    setDropModalVisible(false);
-    setSelectedCourse(null);
   };
 
   return (
     <View style={styles.container}>
       <Header title="My Courses" />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView 
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[COLORS.primary]}
+            tintColor={COLORS.primary}
+          />
+        }
+      >
         {loading ? (
           <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
         ) : (
@@ -95,25 +156,7 @@ export default function CoursesScreen() {
                     course={item}
                     showDropButton
                     onDrop={() => handleDropCourse(item)}
-                  />
-                )}
-                scrollEnabled={false}
-                contentContainerStyle={styles.coursesList}
-              />
-            )}
-
-            <Text style={styles.sectionTitle}>Available Courses</Text>
-            {availableCourses.length === 0 ? (
-              <Text style={styles.emptyStateText}>No more courses available to enroll.</Text>
-            ) : (
-              <FlatList
-                data={availableCourses}
-                keyExtractor={(item) => item.id}
-                renderItem={({ item }) => (
-                  <CourseCard
-                    course={item}
-                    showEnrollButton
-                    onEnroll={() => handleEnrollCourse(item)}
+                    dropping={droppingCourseId === item.id}
                   />
                 )}
                 scrollEnabled={false}
@@ -123,7 +166,7 @@ export default function CoursesScreen() {
           </>
         )}
 
-        {/* Drop Modal */}
+        {/* Drop Confirmation Modal */}
         <Modal
           visible={dropModalVisible}
           transparent
@@ -147,8 +190,13 @@ export default function CoursesScreen() {
                 <TouchableOpacity
                   style={[styles.modalButton, styles.dropButton]}
                   onPress={confirmDropCourse}
+                  disabled={droppingCourseId !== null}
                 >
-                  <Text style={styles.dropButtonText}>Drop Course</Text>
+                  {droppingCourseId ? (
+                    <ActivityIndicator color={COLORS.white} />
+                  ) : (
+                    <Text style={styles.dropButtonText}>Drop Course</Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </View>

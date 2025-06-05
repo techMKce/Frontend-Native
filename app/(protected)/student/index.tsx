@@ -5,9 +5,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Modal,
-  Pressable,
   ActivityIndicator,
+  Modal,
+  FlatList,
+  Alert,
 } from 'react-native';
 import {
   COLORS,
@@ -18,433 +19,561 @@ import {
 } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import {
-  Calendar,
   BookOpen,
-  ClipboardCheck,
+  Bookmark,
   ChevronRight,
-  ChartBar as BarChart3,
+  X,
+  Award,
 } from 'lucide-react-native';
-import api from '@/service/api';
-import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import api from '@/service/api';
 
+interface Course {
+  course_id: number;
+  courseCode: string | null;
+  courseTitle: string;
+  courseDescription: string;
+  dept: string;
+  createdAt: string;
+  updatedAt: string;
+  isActive: boolean;
+  duration: number;
+  credit: number;
+  imageUrl: string;
+}
 
-type AttendanceSessionData = {
-  session: string;
+interface Enrollment {
+  courseId: string;
+  rollNums: string[];
+  courseDetails?: Course;
+}
+
+interface Assignment {
+  id: number;
+  name: string;
+  course: string;
+  dueDate: string;
+}
+
+interface AttendanceData {
+  session: string | null;
   stdId: string;
   sem: number;
-  stdName: string;
   batch: string;
-  deptId: string;
+  stdName: string;
   deptName: string;
-  presentcount: number;
+  deptId: string;
   totaldays: number;
+  presentcount: number;
   percentage: number;
-};
-
-type AttendanceData = {
-  forenoon?: AttendanceSessionData;
-  afternoon?: AttendanceSessionData;
-  overallPercentage?: number;
-};
+}
 
 export default function StudentDashboard() {
   const { profile } = useAuth();
   const user = profile?.profile;
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [attendanceData, setAttendanceData] = useState<{
-    percentage: number;
-    presentsession: number;
-    totalsession: number;
-    afternoon: number;
-    forenoon: number;
-  } | null>(null);
-  const [semesterAttendanceDetails, setSemesterAttendanceDetails] = useState<
-    Record<
-      number,
-      {
-        percentage: number;
-        FN: { conducted: number; present: number };
-        AN: { conducted: number; present: number };
-      }
-    >
-  >({});
-  const router = useRouter();
 
-  /* modal state */
-  const [modalVisible, setModalVisible] = useState(false);
-  const [selectedSemester, setSelectedSemester] = useState<number | null>(null);
+  const [stats, setStats] = useState({
+    enrolledCourses: 0,
+    availableCourses: 0,
+    attendancePercentage: 0
+  });
+
+  const [availableCoursesList, setAvailableCoursesList] = useState<Course[]>([]);
+  const [enrolledCoursesList, setEnrolledCoursesList] = useState<Enrollment[]>([]);
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [recentCourses, setRecentCourses] = useState<Course[]>([]);
+
+  const [loading, setLoading] = useState({
+    main: true,
+    available: false,
+    enrolled: false,
+    courseDetails: false
+  });
+
+  const [modalVisible, setModalVisible] = useState({
+    availableCourses: false,
+    enrolledCourses: false,
+    courseDetails: false,
+  });
 
   useEffect(() => {
-  const fetchAttendanceData = async () => {
+    loadDashboardData();
+  }, [user?.id]);
+
+  const loadDashboardData = async () => {
+    if (!user?.id) return;
+
     try {
-      setLoading(true);
-      const response = await api.get('/getstudent', {
-        params: {
-          id: 'l301',
-        },
-      });
-
-      const apiData = response.data as AttendanceSessionData[];
-
-      // Initialize all 8 semesters with zero values
-      const initialSemesterData: Record<number, {
-        percentage: number;
-        FN: { conducted: number; present: number };
-        AN: { conducted: number; present: number };
-      }> = {};
+      setLoading(prev => ({ ...prev, main: true }));
       
-      for (let i = 1; i <= 8; i++) {
-        initialSemesterData[i] = {
-          percentage: 0,
-          FN: { present: 0, conducted: 0 },
-          AN: { present: 0, conducted: 0 }
-        };
-      }
+      await Promise.all([
+        loadEnrolledCourses(),
+        loadAvailableCourses(),
+        loadAttendanceData(),
+        loadAssignments(),
+      ]);
 
-      // Fill in data from API
-      apiData.forEach(item => {
-        if (!initialSemesterData[item.sem]) {
-          initialSemesterData[item.sem] = {
-            percentage: 0,
-            FN: { present: 0, conducted: 0 },
-            AN: { present: 0, conducted: 0 }
-          };
-        }
-
-        if (item.session === 'forenoon') {
-          initialSemesterData[item.sem].FN = {
-            present: item.presentcount,
-            conducted: item.totaldays
-          };
-        } else if (item.session === 'afternoon') {
-          initialSemesterData[item.sem].AN = {
-            present: item.presentcount,
-            conducted: item.totaldays
-          };
-        }
-
-        // Calculate percentage for each semester
-        const totalPresent = initialSemesterData[item.sem].FN.present + initialSemesterData[item.sem].AN.present;
-        const totalConducted = initialSemesterData[item.sem].FN.conducted + initialSemesterData[item.sem].AN.conducted;
-        initialSemesterData[item.sem].percentage = totalConducted > 0 
-          ? (totalPresent / totalConducted) * 100 
-          : 0;
-      });
-
-      setSemesterAttendanceDetails(initialSemesterData);
-
-      // Calculate overall attendance across all semesters
-      let totalPresent = 0;
-      let totalConducted = 0;
-      
-      Object.values(initialSemesterData).forEach(semester => {
-        totalPresent += semester.FN.present + semester.AN.present;
-        totalConducted += semester.FN.conducted + semester.AN.conducted;
-      });
-
-      const overallPercentage = totalConducted > 0 
-        ? (totalPresent / totalConducted) * 100 
-        : 0;
-
-      setAttendanceData({
-        percentage: overallPercentage,
-        presentsession: totalPresent,
-        totalsession: totalConducted,
-        afternoon: 0, // These will be calculated per semester
-        forenoon: 0   // These will be calculated per semester
-      });
-
-    } catch (err) {
-      setError('Failed to fetch attendance data');
-      console.error('Error fetching attendance:', err);
+    } catch (error) {
+      console.error("Error loading dashboard data:", error);
+      Alert.alert('Error', 'Failed to load dashboard data. Please try again.');
     } finally {
-      setLoading(false);
+      setLoading(prev => ({ ...prev, main: false }));
     }
   };
 
-  if (user?.id) {
-    fetchAttendanceData();
-  }
-}, [user]);
+  const loadEnrolledCourses = async () => {
+    try {
+      const enrolledResponse = await api.get(`/course-enrollment/by-student/${user.id}`);
+      const enrolledCourseIds: string[] = enrolledResponse.data || [];
 
-  if (loading) {
+      const enrichedEnrollments: Enrollment[] = [];
+      const recentCoursesData: Course[] = [];
+
+      for (const courseId of enrolledCourseIds) {
+        try {
+          const courseDetailsResponse = await api.get(`/course/details/${courseId}`);
+          const courseDetails = courseDetailsResponse.data;
+          
+          enrichedEnrollments.push({
+            courseId,
+            rollNums: [],
+            courseDetails
+          });
+
+          if (recentCoursesData.length < 3) {
+            recentCoursesData.push(courseDetails);
+          }
+        } catch (error) {
+          console.error(`Error fetching details for course ${courseId}:`, error);
+        }
+      }
+
+      setEnrolledCoursesList(enrichedEnrollments);
+      setRecentCourses(recentCoursesData);
+      setStats(prev => ({ ...prev, enrolledCourses: enrichedEnrollments.length }));
+
+    } catch (error) {
+      console.error("Error loading enrolled courses:", error);
+    }
+  };
+
+  const loadAvailableCourses = async () => {
+    try {
+      const response = await api.get('/course/details');
+      const allCourses: Course[] = response.data || [];
+      const activeCourses = allCourses.filter(course => course.isActive);
+
+      const enrolledCourseIds = enrolledCoursesList.map(enrollment => enrollment.courseId);
+      const availableCourses = activeCourses.filter(course =>
+        !enrolledCourseIds.includes(course.course_id.toString())
+      );
+
+      setAvailableCoursesList(availableCourses);
+      setStats(prev => ({ ...prev, availableCourses: availableCourses.length }));
+
+    } catch (error) {
+      console.error("Error loading available courses:", error);
+    }
+  };
+
+  const loadAttendanceData = async () => {
+    try {
+      const attendanceResponse = await api.get('/attendance/allattendancepercentage');
+      const attendanceData: AttendanceData[] = attendanceResponse.data || [];
+      
+      const studentAttendance = attendanceData.find(record => record.stdId === user.id);
+      
+      if (studentAttendance) {
+        setStats(prev => ({
+          ...prev,
+          attendancePercentage: Math.round(studentAttendance.percentage)
+        }));
+      } else {
+        setStats(prev => ({
+          ...prev,
+          attendancePercentage: 0
+        }));
+      }
+
+    } catch (error) {
+      console.error("Error loading attendance data:", error);
+      setStats(prev => ({
+        ...prev,
+        attendancePercentage: 0
+      }));
+    }
+  };
+
+  const loadAssignments = async () => {
+    try {
+      const mockAssignments: Assignment[] = [
+        { id: 1, name: 'Algebra Homework', course: 'Mathematics', dueDate: '2024-06-10' },
+        { id: 2, name: 'Lab Report', course: 'Physics', dueDate: '2024-06-12' },
+        { id: 3, name: 'Organic Chemistry Essay', course: 'Chemistry', dueDate: '2024-06-15' },
+      ];
+      setAssignments(mockAssignments);
+    } catch (error) {
+      console.error("Error loading assignments:", error);
+    }
+  };
+
+  const fetchCourseDetails = async (courseId: string) => {
+    try {
+      setLoading(prev => ({ ...prev, courseDetails: true }));
+      const response = await api.get(`/course/details/${courseId}`);
+      setSelectedCourse(response.data);
+      setModalVisible(prev => ({ ...prev, courseDetails: true }));
+    } catch (error) {
+      console.error("Error fetching course details:", error);
+      Alert.alert('Error', 'Failed to load course details');
+    } finally {
+      setLoading(prev => ({ ...prev, courseDetails: false }));
+    }
+  };
+
+  const handleEnrolledCoursesClick = async () => {
+    if (enrolledCoursesList.length === 0) {
+      setLoading(prev => ({ ...prev, enrolled: true }));
+      await loadEnrolledCourses();
+      setLoading(prev => ({ ...prev, enrolled: false }));
+    }
+    setModalVisible(prev => ({ ...prev, enrolledCourses: true }));
+  };
+
+  const handleAvailableCoursesClick = async () => {
+    setLoading(prev => ({ ...prev, available: true }));
+    await loadAvailableCourses();
+    setLoading(prev => ({ ...prev, available: false }));
+    setModalVisible(prev => ({ ...prev, availableCourses: true }));
+  };
+
+  if (loading.main) {
     return (
-      <View style={styles.container}>
+      <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
       </View>
     );
   }
-
-  if (error) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
-  }
-
-  // Mock data for courses
-  const mockCourseData = {
-    enrolled: 5,
-    recent: [
-      { id: 1, name: 'Mathematics', lastAccessed: '2024-06-01' },
-      { id: 2, name: 'Physics', lastAccessed: '2024-05-28' },
-      { id: 3, name: 'Chemistry', lastAccessed: '2024-05-25' },
-    ],
-  };
-
-  // Mock data for assignments
-  const mockAssignmentData = {
-    pending: 3,
-    upcoming: [
-      { id: 1, name: 'Algebra Homework', course: 'Mathematics', dueDate: '2024-06-10' },
-      { id: 2, name: 'Lab Report', course: 'Physics', dueDate: '2024-06-12' },
-      { id: 3, name: 'Organic Chemistry Essay', course: 'Chemistry', dueDate: '2024-06-15' },
-    ],
-  };
 
   return (
     <View style={styles.container}>
-      <Header title={`Hello, ${user?.name.split(' ')[0] || 'Student'}`} />
+      <Header title={`Hello, ${user?.name?.split(' ')[0] || 'Student'}`} />
 
-      {/* ─────────────────────────── Dashboard Scroll ─────────────────────────── */}
-      <ScrollView style={styles.scrollContainer}>
-        {/* ──────────── Stat Cards Row ──────────── */}
+      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.statsContainer}>
-          {/* Attendance Card (clickable) */}
-          <TouchableOpacity
-            style={[styles.statCard, styles.attendanceCard]}
-            onPress={() => setModalVisible(true)}
+          <TouchableOpacity 
+            style={[styles.statCard, styles.enrolledCard]}
+            onPress={handleEnrolledCoursesClick}
           >
             <View style={styles.statIconContainer}>
-              <BarChart3 size={24} color={COLORS.primary} />
+              <BookOpen size={24} color={COLORS.primary} />
             </View>
             <View>
-              <Text style={styles.statValue}>
-                {attendanceData?.percentage?.toFixed(1) || 0}%
-              </Text>
-              <Text style={styles.statLabel}>Attendance</Text>
-              <Text style={styles.statLabel}>Click to view details</Text>
+              <Text style={styles.statValue}>{stats.enrolledCourses}</Text>
+              <Text style={styles.statLabel}>Enrolled Courses</Text>
             </View>
           </TouchableOpacity>
 
-          {/* Enrolled Courses */}
-          <View style={[styles.statCard, styles.coursesCard]}>
+          <TouchableOpacity 
+            style={[styles.statCard, styles.availableCard]}
+            onPress={handleAvailableCoursesClick}
+          >
             <View style={styles.statIconContainer}>
-              <BookOpen size={24} color={COLORS.secondary} />
+              <Bookmark size={24} color={COLORS.secondary} />
             </View>
             <View>
-              <Text style={styles.statValue}>{mockCourseData.enrolled}</Text>
-              <Text style={styles.statLabel}>Enrolled Courses</Text>
+              <Text style={styles.statValue}>{stats.availableCourses}</Text>
+              <Text style={styles.statLabel}>Available Courses</Text>
             </View>
-          </View>
+          </TouchableOpacity>
 
-          {/* Pending Assignments */}
-          <View style={[styles.statCard, styles.assignmentsCard]}>
+          <View style={[styles.statCard, styles.attendanceCard]}>
             <View style={styles.statIconContainer}>
-              <ClipboardCheck size={24} color={COLORS.accent} />
+              <Award size={24} color={COLORS.accent} />
             </View>
             <View>
-              <Text style={styles.statValue}>{mockAssignmentData.pending}</Text>
-              <Text style={styles.statLabel}>Pending Assignments</Text>
+              <Text style={styles.statValue}>{stats.attendancePercentage}%</Text>
+              <Text style={styles.statLabel}>Attendance</Text>
             </View>
           </View>
         </View>
 
-        {/* ──────────── Upcoming Assignments ──────────── */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming Assignments</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-
-          {mockAssignmentData.upcoming.map((assignment) => (
-            <TouchableOpacity key={assignment.id} style={styles.assignmentCard}>
-              <View style={styles.assignmentInfo}>
-                <Text style={styles.assignmentName}>{assignment.name}</Text>
-                <Text style={styles.assignmentCourse}>{assignment.course}</Text>
-              </View>
-              <View style={styles.assignmentDueContainer}>
-                <Text style={styles.assignmentDueLabel}>Due Date</Text>
-                <Text style={styles.assignmentDueDate}>
-                  {new Date(assignment.dueDate).toLocaleDateString()}
-                </Text>
-              </View>
-              <ChevronRight size={20} color={COLORS.gray} />
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ──────────── Recent Courses ──────────── */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Courses</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-
-          {mockCourseData.recent.map((course) => (
-            <TouchableOpacity key={course.id} style={styles.courseCard}>
-              <View style={styles.courseInfo}>
-                <Text style={styles.courseName}>{course.name}</Text>
-                <Text style={styles.courseLastAccessed}>
-                  Last accessed: {course.lastAccessed}
-                </Text>
-              </View>
-              <ChevronRight size={20} color={COLORS.gray} />
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ──────────── Exam Timetable ──────────── */}
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Exam Timetable</Text>
-            <Calendar size={20} color={COLORS.primary} />
-          </View>
-
-          <View style={styles.examTimetableCard}>
-            <Text style={styles.examTimetableText}>
-              Download your{' '}
-              <Text style={styles.examHighlight}>Exam Timetable</Text>
-            </Text>
-            <TouchableOpacity
-              style={styles.viewTimetableButton}
-              onPress={() => router.push('/exam-timetable')}
-            >
-              <Text style={styles.viewTimetableText}>View Full Timetable</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Bottom padding */}
-        <View style={{ height: 80 }} />
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* ────────────────────────── Attendance Modal ─────────────────────────── */}
-      <Modal visible={modalVisible} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>Select Semester</Text>
+      <Modal
+        visible={modalVisible.enrolledCourses}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Enrolled Courses</Text>
+            <TouchableOpacity
+              onPress={() => setModalVisible(prev => ({ ...prev, enrolledCourses: false }))}
+            >
+              <X size={24} color={COLORS.gray} />
+            </TouchableOpacity>
+          </View>
 
-            {/* Semester buttons */}
-            <View style={styles.semesterGrid}>
-              {[1, 2, 3, 4, 5, 6, 7, 8].map((semester) => {
-                const selected = selectedSemester === semester;
-                return (
-                  <TouchableOpacity
-                    key={semester}
-                    style={[
-                      styles.semesterButton,
-                      selected && styles.semesterButtonSelected,
-                    ]}
-                    onPress={() => setSelectedSemester(semester)}
-                  >
-                    <Text
-                      style={[
-                        styles.semesterText,
-                        selected && { color: COLORS.white },
-                      ]}
-                    >
-                      Semester {semester}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
+          {loading.enrolled ? (
+            <View style={styles.modalLoadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.loadingText}>Loading enrolled courses...</Text>
             </View>
+          ) : (
+            <FlatList
+              data={enrolledCoursesList}
+              keyExtractor={(item) => item.courseId}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.modalCourseCard}
+                  onPress={() => {
+                    setModalVisible(prev => ({ ...prev, enrolledCourses: false }));
+                    fetchCourseDetails(item.courseId);
+                  }}
+                >
+                  <View style={styles.modalCourseInfo}>
+                    <Text style={styles.modalCourseTitle}>
+                      {item.courseDetails?.courseTitle}
+                    </Text>
+                    <Text style={styles.modalCourseDept}>
+                      {item.courseDetails?.dept}
+                    </Text>
+                    <View style={styles.modalCourseStatus}>
+                      <Text style={[
+                        styles.statusBadge,
+                        item.courseDetails?.isActive ? styles.activeBadge : styles.inactiveBadge
+                      ]}>
+                        {item.courseDetails?.isActive ? 'Active' : 'Inactive'}
+                      </Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={20} color={COLORS.gray} />
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyModalContent}>
+                  <BookOpen size={48} color={COLORS.gray} />
+                  <Text style={styles.emptyModalTitle}>No enrolled courses</Text>
+                  <Text style={styles.emptyModalText}>
+                    You haven't enrolled in any courses yet
+                  </Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      </Modal>
 
-            {/* Attendance details */}
-            {selectedSemester && (
-              <View style={styles.attendanceDetail}>
-                <Text style={styles.attendanceDetailText}>
-                  Overall Attendance:{' '}
-                  {semesterAttendanceDetails[
-                    selectedSemester
-                  ].percentage.toFixed(1)}
-                  %
-                </Text>
-                <Text style={styles.attendanceDetailText}>
-                  FN — Present:{' '}
-                  {semesterAttendanceDetails[selectedSemester].FN.present} /
-                  {semesterAttendanceDetails[selectedSemester].FN.conducted}{' '}
-                  days
-                </Text>
-                <Text style={styles.attendanceDetailText}>
-                  AN — Present:{' '}
-                  {semesterAttendanceDetails[selectedSemester].AN.present} /
-                  {semesterAttendanceDetails[selectedSemester].AN.conducted}{' '}
-                  days
+      <Modal
+        visible={modalVisible.availableCourses}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Available Courses</Text>
+            <TouchableOpacity
+              onPress={() => setModalVisible(prev => ({ ...prev, availableCourses: false }))}
+            >
+              <X size={24} color={COLORS.gray} />
+            </TouchableOpacity>
+          </View>
+
+          {loading.available ? (
+            <View style={styles.modalLoadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.loadingText}>Loading available courses...</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={availableCoursesList}
+              keyExtractor={(item) => item.course_id.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity 
+                  style={styles.modalCourseCard}
+                  onPress={() => {
+                    setModalVisible(prev => ({ ...prev, availableCourses: false }));
+                    fetchCourseDetails(item.course_id.toString());
+                  }}
+                >
+                  <View style={styles.modalCourseInfo}>
+                    <Text style={styles.modalCourseTitle}>{item.courseTitle}</Text>
+                    <Text style={styles.modalCourseDept}>{item.dept}</Text>
+                    <View style={styles.modalCourseStatus}>
+                      <Text style={[
+                        styles.statusBadge,
+                        item.isActive ? styles.activeBadge : styles.inactiveBadge
+                      ]}>
+                        {item.isActive ? 'Active' : 'Inactive'}
+                      </Text>
+                    </View>
+                  </View>
+                  <ChevronRight size={20} color={COLORS.gray} />
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyModalContent}>
+                  <BookOpen size={48} color={COLORS.gray} />
+                  <Text style={styles.emptyModalTitle}>No courses available</Text>
+                  <Text style={styles.emptyModalText}>
+                    There are currently no courses available for enrollment
+                  </Text>
+                </View>
+              }
+            />
+          )}
+        </View>
+      </Modal>
+
+      <Modal
+        visible={modalVisible.courseDetails}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Course Details</Text>
+            <TouchableOpacity
+              onPress={() => setModalVisible(prev => ({ ...prev, courseDetails: false }))}
+            >
+              <X size={24} color={COLORS.gray} />
+            </TouchableOpacity>
+          </View>
+
+          {loading.courseDetails ? (
+            <View style={styles.modalLoadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.loadingText}>Loading course details...</Text>
+            </View>
+          ) : selectedCourse ? (
+            <ScrollView style={styles.courseDetailsContainer}>
+              <View style={styles.courseDetailsGrid}>
+                <View style={styles.courseDetailItem}>
+                  <Text style={styles.courseDetailLabel}>Course ID</Text>
+                  <Text style={styles.courseDetailValue}>
+                    {selectedCourse.course_id}
+                  </Text>
+                </View>
+
+                <View style={styles.courseDetailItem}>
+                  <Text style={styles.courseDetailLabel}>Course Code</Text>
+                  <Text style={styles.courseDetailValue}>
+                    {selectedCourse.courseCode || 'N/A'}
+                  </Text>
+                </View>
+
+                <View style={styles.courseDetailItem}>
+                  <Text style={styles.courseDetailLabel}>Title</Text>
+                  <Text style={styles.courseDetailValue}>
+                    {selectedCourse.courseTitle}
+                  </Text>
+                </View>
+
+                <View style={styles.courseDetailItem}>
+                  <Text style={styles.courseDetailLabel}>Department</Text>
+                  <Text style={styles.courseDetailValue}>
+                    {selectedCourse.dept}
+                  </Text>
+                </View>
+
+                <View style={styles.courseDetailItem}>
+                  <Text style={styles.courseDetailLabel}>Duration</Text>
+                  <Text style={styles.courseDetailValue}>
+                    {selectedCourse.duration} weeks
+                  </Text>
+                </View>
+
+                <View style={styles.courseDetailItem}>
+                  <Text style={styles.courseDetailLabel}>Credits</Text>
+                  <Text style={styles.courseDetailValue}>
+                    {selectedCourse.credit}
+                  </Text>
+                </View>
+
+                <View style={styles.courseDetailItem}>
+                  <Text style={styles.courseDetailLabel}>Status</Text>
+                  <Text style={[
+                    styles.statusBadge,
+                    selectedCourse.isActive ? styles.activeBadge : styles.inactiveBadge
+                  ]}>
+                    {selectedCourse.isActive ? 'Active' : 'Inactive'}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.courseDescriptionContainer}>
+                <Text style={styles.courseDetailLabel}>Description</Text>
+                <Text style={styles.courseDescription}>
+                  {selectedCourse.courseDescription}
                 </Text>
               </View>
-            )}
-
-            {/* Close */}
-            <Pressable
-              style={styles.closeButton}
-              onPress={() => {
-                setModalVisible(false);
-                setSelectedSemester(null);
-              }}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
+            </ScrollView>
+          ) : (
+            <View style={styles.emptyModalContent}>
+              <Text style={styles.emptyModalTitle}>No course details available</Text>
+            </View>
+          )}
         </View>
       </Modal>
     </View>
   );
 }
 
-/* -------------------------------------------------------------------------- */
-/*                                  STYLES                                    */
-/* -------------------------------------------------------------------------- */
-
 const styles = StyleSheet.create({
-  /* core layout */
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: COLORS.background,
+  },
+  loadingText: {
+    marginTop: SPACING.sm,
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    color: COLORS.gray,
   },
   scrollContainer: {
     flex: 1,
     padding: SPACING.md,
   },
-
-  /* stats row */
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.lg,
-    flexWrap: 'wrap',
+    flexDirection: 'column',
+    gap: SPACING.md,
   },
   statCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
     padding: SPACING.md,
-    minWidth: '30%',
-    flex: 1,
-    marginHorizontal: 4,
-    marginBottom: SPACING.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
     ...SHADOWS.small,
   },
+  availableCard: {
+    borderLeftColor: COLORS.primary,
+    borderLeftWidth: 4,
+  },
+  enrolledCard: {
+    borderLeftColor: COLORS.secondary,
+    borderLeftWidth: 4,
+  },
   attendanceCard: {
-    borderTopColor: COLORS.primary,
-    borderTopWidth: 3,
+    borderLeftColor: COLORS.accent,
+    borderLeftWidth: 4,
   },
-  coursesCard: {
-    borderTopColor: COLORS.secondary,
-    borderTopWidth: 3,
+  statIconContainer: { 
+    marginRight: SPACING.md,
+    padding: SPACING.sm,
+    backgroundColor: COLORS.lightGray,
+    borderRadius: 8,
   },
-  assignmentsCard: {
-    borderTopColor: COLORS.accent,
-    borderTopWidth: 3,
-  },
-  statIconContainer: { marginBottom: SPACING.sm },
   statValue: {
     fontFamily: FONT.bold,
     fontSize: SIZES.lg,
@@ -455,171 +584,126 @@ const styles = StyleSheet.create({
     fontSize: SIZES.xs,
     color: COLORS.gray,
   },
-
-  /* sections */
-  sectionContainer: { marginBottom: SPACING.lg },
-  sectionHeader: {
+  modalContainer: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: SPACING.md,
-  },
-  sectionTitle: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
-    color: COLORS.darkGray,
-  },
-  viewAllText: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.sm,
-    color: COLORS.primary,
-  },
-
-  /* upcoming assignments */
-  assignmentCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
     padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...SHADOWS.small,
-  },
-  assignmentInfo: { flex: 1 },
-  assignmentName: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
-    color: COLORS.darkGray,
-    marginBottom: 2,
-  },
-  assignmentCourse: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.xs,
-    color: COLORS.gray,
-  },
-  assignmentDueContainer: { marginRight: SPACING.md, alignItems: 'center' },
-  assignmentDueLabel: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.xs,
-    color: COLORS.gray,
-  },
-  assignmentDueDate: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.sm,
-    color: COLORS.accent,
-  },
-
-  /* recent courses */
-  courseCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...SHADOWS.small,
-  },
-  courseInfo: { flex: 1 },
-  courseName: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
-    color: COLORS.darkGray,
-    marginBottom: 2,
-  },
-  courseLastAccessed: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.xs,
-    color: COLORS.gray,
-  },
-
-  /* exam timetable */
-  examTimetableCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: SPACING.lg,
-    ...SHADOWS.small,
-  },
-  examTimetableText: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.md,
-    color: COLORS.darkGray,
-    marginBottom: SPACING.md,
-    textAlign: 'center',
-  },
-  examHighlight: { fontFamily: FONT.semiBold, color: COLORS.primary },
-  viewTimetableButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    alignSelf: 'center',
-  },
-  viewTimetableText: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.sm,
-    color: COLORS.white,
-  },
-
-  /* modal */
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    backgroundColor: COLORS.white,
-    width: '90%',
-    borderRadius: 12,
-    padding: SPACING.lg,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
   },
   modalTitle: {
     fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
-    marginBottom: SPACING.md,
-    textAlign: 'center',
-  },
-  semesterGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.md,
-  },
-  semesterButton: {
-    backgroundColor: COLORS.lightGray,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderRadius: 8,
-    marginBottom: SPACING.sm,
-    width: '48%',
-    alignItems: 'center',
-  },
-  semesterButtonSelected: { backgroundColor: COLORS.primary },
-  semesterText: {
-    fontFamily: FONT.medium,
+    fontSize: SIZES.lg,
     color: COLORS.darkGray,
   },
-  attendanceDetail: { marginVertical: SPACING.md },
-  attendanceDetailText: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
+  modalLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalCourseCard: {
+    backgroundColor: COLORS.white,
+    marginHorizontal: SPACING.md,
+    marginVertical: SPACING.sm,
+    borderRadius: 12,
+    padding: SPACING.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...SHADOWS.small,
+  },
+  modalCourseInfo: {
+    flex: 1,
+  },
+  modalCourseTitle: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.md,
     color: COLORS.darkGray,
     marginBottom: 4,
   },
-  closeButton: {
-    backgroundColor: COLORS.accent,
-    padding: SPACING.sm,
-    borderRadius: 8,
-    alignItems: 'center',
+  modalCourseDept: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    color: COLORS.gray,
+    marginBottom: SPACING.sm,
   },
-  closeButtonText: {
+  modalCourseStatus: {
+    alignSelf: 'flex-start',
+  },
+  statusBadge: {
     fontFamily: FONT.medium,
+    fontSize: SIZES.xs,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  activeBadge: {
+    backgroundColor: COLORS.primary,
     color: COLORS.white,
   },
-  errorText: {
+  inactiveBadge: {
+    backgroundColor: COLORS.lightGray,
+    color: COLORS.gray,
+  },
+  emptyModalContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: SPACING.xl,
+  },
+  emptyModalTitle: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.lg,
+    color: COLORS.darkGray,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
+  emptyModalText: {
     fontFamily: FONT.regular,
-    fontSize: SIZES.md,
-    color: COLORS.error,
+    fontSize: SIZES.sm,
+    color: COLORS.gray,
     textAlign: 'center',
+  },
+  courseDetailsContainer: {
+    flex: 1,
+    padding: SPACING.md,
+  },
+  courseDetailsGrid: {
+    marginBottom: SPACING.lg,
+  },
+  courseDetailItem: {
+    backgroundColor: COLORS.white,
+    padding: SPACING.md,
+    borderRadius: 8,
+    marginBottom: SPACING.sm,
+    ...SHADOWS.small,
+  },
+  courseDetailLabel: {
+    fontFamily: FONT.medium,
+    fontSize: SIZES.sm,
+    color: COLORS.gray,
+    marginBottom: 4,
+  },
+  courseDetailValue: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.md,
+    color: COLORS.darkGray,
+  },
+  courseDescriptionContainer: {
+    backgroundColor: COLORS.white,
+    padding: SPACING.md,
+    borderRadius: 8,
+    ...SHADOWS.small,
+  },
+  courseDescription: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    color: COLORS.darkGray,
+    lineHeight: 20,
   },
 });

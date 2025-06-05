@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Users, GraduationCap, BookOpen } from 'lucide-react-native';
 
@@ -15,97 +15,91 @@ export default function AdminDashboard() {
     totalFaculty: 0,
     totalCourses: 0,
   });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const initCourses = async () => {
-      const localCourses = await AsyncStorage.getItem('courses');
-      setStats(prev => ({
-        ...prev,
-        totalCourses: localCourses ? JSON.parse(localCourses).length : 0,
-      }));
-    };
-
-    const fetchCounts = async () => {
+    const fetchData = async () => {
       try {
-        const studentRes = await api.get('/profile/student/count');
-        const facultyRes = await api.get('/profile/faculty/count');
+        setLoading(true);
+        
+        const studentCountResponse = await api.get('/profile/student/count');
+        const facultyCountResponse = await api.get('/profile/faculty/count');
+        const courseCountResponse = await api.get('/course/count');
 
-        setStats(prev => ({
-          ...prev,
-          totalStudents: Number(studentRes.data),
-          totalFaculty: Number(facultyRes.data),
-        }));
-      } catch (err) {
-        console.error('Failed to fetch counts:', err);
-        Alert.alert('Error', 'Failed to fetch counts from server.');
-
+        setStats({
+          totalStudents: studentCountResponse.data,
+          totalFaculty: facultyCountResponse.data,
+          totalCourses: courseCountResponse.data,
+        });
+      } catch (error) {
+        console.error('Failed to fetch counts:', error);
+        Alert.alert('Error', 'Failed to fetch data from server. Showing cached data.');
+        
         const localStudents = await AsyncStorage.getItem('students');
         const localFaculty = await AsyncStorage.getItem('faculty');
+        const localCourses = await AsyncStorage.getItem('courses');
 
-        setStats(prev => ({
-          ...prev,
+        setStats({
           totalStudents: localStudents ? JSON.parse(localStudents).length : 0,
           totalFaculty: localFaculty ? JSON.parse(localFaculty).length : 0,
-        }));
+          totalCourses: localCourses ? JSON.parse(localCourses).length : 0,
+        });
+      } finally {
+        setLoading(false);
       }
     };
 
-    initCourses();
-    fetchCounts();
+    fetchData();
   }, []);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Header title={`Welcome, ${profile?.profile.name.split(' ')[0] || 'ADMIN'}`} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-<Header title={`Welcome, ${profile?.profile.name.split(' ')[0] || 'ADMIN'}`} />
+      <Header title={`Welcome, ${profile?.profile.name.split(' ')[0] || 'ADMIN'}`} />
 
       <ScrollView style={styles.scrollContainer}>
         <View style={styles.statsContainer}>
+          {/* Faculty Card */}
           <View style={[styles.statCard, styles.facultyCard]}>
             <View style={styles.statIconContainer}>
-              <Users size={24} color={COLORS.primary} />
+              <Users size={36} color={COLORS.primary} />
             </View>
-            <View>
+            <View style={styles.statTextContainer}>
               <Text style={styles.statValue}>{stats.totalFaculty}</Text>
               <Text style={styles.statLabel}>Total Faculty</Text>
             </View>
           </View>
 
+          {/* Students Card */}
           <View style={[styles.statCard, styles.studentsCard]}>
             <View style={styles.statIconContainer}>
-              <GraduationCap size={24} color={COLORS.secondary} />
+              <GraduationCap size={36} color={COLORS.secondary} />
             </View>
-            <View>
+            <View style={styles.statTextContainer}>
               <Text style={styles.statValue}>{stats.totalStudents}</Text>
               <Text style={styles.statLabel}>Total Students</Text>
             </View>
           </View>
 
+          {/* Courses Card */}
           <View style={[styles.statCard, styles.coursesCard]}>
             <View style={styles.statIconContainer}>
-              <BookOpen size={24} color={COLORS.accent} />
+              <BookOpen size={36} color={COLORS.accent} />
             </View>
-            <View>
+            <View style={styles.statTextContainer}>
               <Text style={styles.statValue}>{stats.totalCourses}</Text>
               <Text style={styles.statLabel}>Total Courses</Text>
             </View>
-          </View>
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <Text style={styles.sectionTitle}>System Status</Text>
-          <Text style={styles.sectionSubtitle}>Current system overview</Text>
-
-          <View style={styles.statusCard}>
-            <Text style={styles.statusLabel}>Students Enrolled</Text>
-            <Text style={styles.statusValue}>{stats.totalStudents}</Text>
-          </View>
-          <View style={styles.statusCard}>
-            <Text style={styles.statusLabel}>Faculty Active</Text>
-            <Text style={styles.statusValue}>{stats.totalFaculty}</Text>
-          </View>
-          <View style={styles.statusCard}>
-            <Text style={styles.statusLabel}>Courses Available</Text>
-            <Text style={styles.statusValue}>{stats.totalCourses}</Text>
           </View>
         </View>
 
@@ -125,77 +119,58 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
   },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: SPACING.lg,
-    flexWrap: 'wrap',
-    gap: SPACING.sm,
+    flexDirection: 'column',
+    gap: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   statCard: {
     backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: SPACING.md,
-    flex: 1,
-    minWidth: '30%',
-    ...SHADOWS.small,
+    borderRadius: 16,
+    padding: SPACING.lg,
+    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    ...SHADOWS.medium,
   },
   facultyCard: {
-    borderTopColor: COLORS.primary,
-    borderTopWidth: 3,
+    borderLeftColor: COLORS.primary,
+    borderLeftWidth: 6,
   },
   studentsCard: {
-    borderTopColor: COLORS.secondary,
-    borderTopWidth: 3,
+    borderLeftColor: COLORS.secondary,
+    borderLeftWidth: 6,
   },
   coursesCard: {
-    borderTopColor: COLORS.accent,
-    borderTopWidth: 3,
+    borderLeftColor: COLORS.accent,
+    borderLeftWidth: 6,
   },
   statIconContainer: {
-    marginBottom: SPACING.sm,
+    marginRight: SPACING.md,
+    padding: SPACING.md,
+    backgroundColor: COLORS.lightPrimary,
+    borderRadius: 50,
+    width: 60,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  statTextContainer: {
+    flex: 1,
   },
   statValue: {
     fontFamily: FONT.bold,
     fontSize: SIZES.lg,
     color: COLORS.darkGray,
+    marginBottom: SPACING.sm,
   },
   statLabel: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.xs,
-    color: COLORS.gray,
-  },
-  sectionContainer: {
-    marginBottom: SPACING.lg,
-  },
-  sectionTitle: {
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
-    color: COLORS.darkGray,
-    marginBottom: SPACING.xs,
-  },
-  sectionSubtitle: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
-    color: COLORS.gray,
-    marginBottom: SPACING.sm,
-  },
-  statusCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    ...SHADOWS.small,
-  },
-  statusLabel: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.md,
     color: COLORS.gray,
   },
-  statusValue: {
-    fontFamily: FONT.bold,
-    fontSize: SIZES.md,
-    color: COLORS.darkGray,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

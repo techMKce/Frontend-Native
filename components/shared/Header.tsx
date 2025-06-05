@@ -7,6 +7,7 @@ import {
   Image,
   Platform,
   Modal,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
@@ -36,6 +37,24 @@ const Header: React.FC<HeaderProps> = ({
       console.error('Logout failed:', error);
     }
   };
+  const confirmLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: handleLogout,
+        },
+      ],
+      { cancelable: false }
+    );
+  };
 
   const navigateToProfile = () => {
     setProfileModalVisible(false);
@@ -57,25 +76,31 @@ const Header: React.FC<HeaderProps> = ({
         </View>
 
         <View style={styles.actionContainer}>
-          {showNotification && (
+          {/* {showNotification && (
             <TouchableOpacity style={styles.iconButton}>
               <Bell size={24} color={COLORS.darkGray} />
             </TouchableOpacity>
-          )}
+          )} */}
 
           {showProfile && profile && (
-            <TouchableOpacity
-              style={styles.profileButton}
-              onPress={() => setProfileModalVisible(true)}
+            <TouchableOpacity 
+              style={styles.iconButton}
+              onPress={confirmLogout}
             >
-              <Image
-                source={{
-                  uri:
-                    'https://images.pexels.com/photos/771742/pexels-photo-771742.jpeg',
-                }}
-                style={styles.profileImage}
-              />
+              <LogOut size={24} color={COLORS.error} />
             </TouchableOpacity>
+            // <TouchableOpacity
+            //   style={styles.profileButton}
+            //   onPress={() => setProfileModalVisible(true)}
+            // >
+            //   <Image
+            //     source={{
+            //       uri:
+            //         'https://images.pexels.com/photos/771742/pexels-photo-771742.jpeg',
+            //     }}
+            //     style={styles.profileImage}
+            //   />
+            // </TouchableOpacity>
           )}
         </View>
       </View>
@@ -95,7 +120,7 @@ const Header: React.FC<HeaderProps> = ({
             style={styles.profileModal}
             onStartShouldSetResponder={() => true}
           >
-            <View style={styles.profileHeader}>
+            {/* <View style={styles.profileHeader}>
               <Image
                 source={{
                   uri:
@@ -107,14 +132,14 @@ const Header: React.FC<HeaderProps> = ({
                 <Text style={styles.profileName}>{profile?.profile?.name}</Text>
                 <Text style={styles.profileRole}>{profile?.profile?.role}</Text>
               </View>
-            </View>
+            </View> */}
 
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={styles.menuItem}
               onPress={navigateToProfile}
             >
               <Text style={styles.menuItemText}>My Profile</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
 
             <TouchableOpacity
               style={[styles.menuItem, styles.logoutItem]}

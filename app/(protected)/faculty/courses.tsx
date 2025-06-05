@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderRadius: 8,
     paddingVertical: SPACING.sm,
-    paddingLeft: SPACING.xl,
+    paddingLeft: SPACING.xxl,
     paddingRight: SPACING.md,
     fontFamily: FONT.regular,
     fontSize: SIZES.md,
