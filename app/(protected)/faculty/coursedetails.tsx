@@ -42,6 +42,7 @@ type CourseDetails = {
 
 type Section = {
   section_id: string;
+  course_id: string;
   sectionTitle: string;
   sectionDesc: string;
 };
@@ -323,6 +324,7 @@ export default function Displaycourses() {
       setLoading(false);
     }
   };
+  
 
   const fetchAssignments = async () => {
     setLoading(true);
@@ -425,11 +427,11 @@ export default function Displaycourses() {
     }
     try {
       setLoading(true);
-      await api.post('/course/section', {
-        courseId: id,
-        sectionTitle,
-        sectionDesc,
-      });
+      await api.post('/course/section/add', {
+      course: { course_id: id },
+      sectionTitle,
+      sectionDesc,
+    });
       await fetchCourseDetails();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       ToastAndroid.show('Section created!', ToastAndroid.SHORT);
@@ -547,10 +549,10 @@ export default function Displaycourses() {
                           </View>
                         </View>
                         <SectionCard
-                          id={Number(section.section_id)}
+                          section_id={Number(section.section_id)}
                           title={section.sectionTitle}
                           desc={section.sectionDesc}
-                          courseId={course?.course_id ? Number(course.course_id) : 0}
+                          course_id={course?.course_id ? Number(course.course_id) : 0}
                           onrefresh={fetchCourseDetails}
                         />
                       </Animated.View>

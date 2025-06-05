@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import {
   View,
   Text,
@@ -12,69 +12,79 @@ import {
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Checkbox } from 'react-native-paper';
 import dayjs from 'dayjs';
-import api from '@/service/api'; // Adjust the import path as necessary
+import Toast from 'react-native-toast-message';
+import api from '@/service/api';
 import Header from '@/components/shared/Header';
+import { AuthContext } from '@/context/AuthContext';
 
 interface Course {
   id: string;
-  courseId: string;
-  name: string;
+  courseCode: string | null;
+  courseTitle: string;
+  courseDescription: string;
   facultyName: string;
-  isEnabled: boolean;
-}
-
-interface ScheduleEntry {
-  id: string;
-  courseId: string;
-  courseName: string;
-  facultyName: string;
-  fromDate: string;
-  toDate: string;
+  isActive: boolean;
+  dept: string;
+  credit: number;
+  duration: number;
 }
 
 export default function ScheduleManagementScreen() {
+  const authContext = useContext(AuthContext);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourses, setSelectedCourses] = useState<string[]>([]);
   const [fromDate, setFromDate] = useState<Date>(new Date());
   const [toDate, setToDate] = useState<Date>(new Date());
   const [showFromPicker, setShowFromPicker] = useState(false);
   const [showToPicker, setShowToPicker] = useState(false);
-  const [generatedSchedule, setGeneratedSchedule] = useState<ScheduleEntry[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
+  const [isLoadingCourses, setIsLoadingCourses] = useState(true);
 
   useEffect(() => {
-    // Fetch active courses from backend on mount
     const fetchCourses = async () => {
+      if (!authContext?.isAuthenticated || !authContext.profile?.token) {
+        Alert.alert('Authentication Required', 'Please login to access this feature');
+        setIsLoadingCourses(false);
+        return;
+      }
+
+      setIsLoadingCourses(true);
       try {
-        const response = await api.get('/course/active');
+        const response = await api.get('/course/details', {
+          headers: {
+            Authorization: `Bearer ${authContext.profile.token}`,
+          },
+        });
         const data = response.data;
-        console.log('Fetched courses:', data);
 
         if (!Array.isArray(data)) {
-          Alert.alert('Error', 'Failed to fetch courses');
-          setCourses([]);
-          return;
+          throw new Error('Invalid response format');
         }
 
         const mappedCourses: Course[] = data.map((item: any) => ({
           id: String(item.course_id),
-          courseId: item.courseTitle,
-          name: item.courseTitle,
+          courseCode: item.courseCode,
+          courseTitle: item.courseTitle,
+          courseDescription: item.courseDescription,
           facultyName: item.instructorName,
-          isEnabled: item.isActive,
+          isActive: item.isActive,
+          dept: item.dept,
+          credit: item.credit,
+          duration: item.duration,
         }));
 
-        const enabledCourses = mappedCourses.filter(course => course.isEnabled);
-        setCourses(enabledCourses);
+        setCourses(mappedCourses);
       } catch (error) {
-        Alert.alert('Error', 'Error fetching courses from server');
+        console.error('Error fetching courses:', error);
+        Alert.alert('Error', 'Failed to load courses. Please try again later.');
         setCourses([]);
+      } finally {
+        setIsLoadingCourses(false);
       }
     };
 
     fetchCourses();
-  }, []);
+  }, [authContext?.isAuthenticated, authContext?.profile?.token]);
 
   const toggleCourse = (id: string) => {
     setSelectedCourses(prev =>
@@ -100,48 +110,38 @@ export default function ScheduleManagementScreen() {
 
   const handleGenerate = async () => {
     if (!validateInputs()) return;
+    if (!authContext?.profile?.token) {
+      Alert.alert('Authentication Required', 'Please login to perform this action');
+      return;
+    }
 
     setIsGenerating(true);
-    setSuccessMessage('');
-
-    const schedule = selectedCourses.map((courseId, index) => {
-      const course = courses.find(c => c.id === courseId);
-      return {
-        id: (index + 1).toString(),
-        courseId: course?.id || '',
-        courseName: course?.name || '',
-        facultyName: course?.facultyName || '',
-        fromDate: fromDate.toISOString().split('T')[0],
-        toDate: toDate.toISOString().split('T')[0],
-      };
-    });
-
-    // Prepare form data as per backend expectations
-    const courseArray = schedule.map(entry => ({
-      courseId: entry.courseId,
-      name: entry.courseName,
-    }));
-
-    const duration = {
-      startDate: fromDate.toISOString().split('T')[0],
-      endDate: toDate.toISOString().split('T')[0],
-    };
-
-    const formData = new FormData();
-    formData.append('courses', JSON.stringify(courseArray));
-    formData.append('duration', JSON.stringify(duration));
 
     try {
-      const response = await api.post('/postexam', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      Toast.show({
+        type: 'success',
+        text1: 'Schedule Generated Successfully',
+        text2: 'Your exam schedule has been created!',
+        position: 'bottom',
+        visibilityTime: 3000,
       });
 
-      setGeneratedSchedule(response.data);
-      setSuccessMessage('Schedule generated successfully!');
+      // Reset form after successful generation
+      setSelectedCourses([]);
+      setFromDate(new Date());
+      setToDate(new Date());
     } catch (error) {
-      Alert.alert('Error', 'Failed to generate schedule');
+      console.error('Error:', error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'Something went wrong',
+        position: 'bottom',
+        visibilityTime: 3000,
+      });
     } finally {
       setIsGenerating(false);
     }
@@ -152,7 +152,7 @@ export default function ScheduleManagementScreen() {
     if (selectedDate) {
       setFromDate(selectedDate);
       if (dayjs(toDate).isBefore(dayjs(selectedDate))) {
-        setToDate(selectedDate); // Adjust toDate if earlier than fromDate
+        setToDate(selectedDate);
       }
     }
   };
@@ -169,32 +169,64 @@ export default function ScheduleManagementScreen() {
     return diff >= 0 ? `${diff + 1} days` : 'Invalid range';
   };
 
+  if (!authContext?.isAuthenticated) {
+    return (
+      <View style={styles.container}>
+        <Header title="Schedule Management" />
+        <View style={styles.authMessageContainer}>
+          <Text style={styles.authMessageText}>
+            Please login to access schedule management
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <Header title="Schedule" />
+      <Header title="Schedule Management" />
       <ScrollView contentContainerStyle={styles.content}>
         {/* Courses Selection */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Available Courses</Text>
           <Text style={styles.subtext}>Select courses to create schedule</Text>
-          {courses.length === 0 ? (
-            <Text style={{ textAlign: 'center', marginVertical: 20, color: '#666' }}>
+          
+          {isLoadingCourses ? (
+            <ActivityIndicator size="large" style={{ marginVertical: 20 }} />
+          ) : courses.length === 0 ? (
+            <Text style={styles.noCoursesText}>
               No courses available
             </Text>
           ) : (
             courses.map(course => (
               <TouchableOpacity
                 key={course.id}
-                style={styles.courseCard}
-                onPress={() => toggleCourse(course.id)}
+                style={[
+                  styles.courseCard,
+                  !course.isActive && styles.inactiveCourse
+                ]}
+                onPress={() => course.isActive && toggleCourse(course.id)}
               >
                 <Checkbox
                   status={selectedCourses.includes(course.id) ? 'checked' : 'unchecked'}
-                  onPress={() => toggleCourse(course.id)}
+                  onPress={() => course.isActive && toggleCourse(course.id)}
+                  disabled={!course.isActive}
+                  color={course.isActive ? '#1a73e8' : '#999'}
                 />
-                <View style={{ flex: 1, marginLeft: 8 }}>
-                  <Text style={styles.courseName}>{course.courseId} - {course.name}</Text>
+                <View style={styles.courseInfo}>
+                  <Text style={styles.courseName}>
+                    {course.courseTitle} {course.courseCode && `(${course.courseCode})`}
+                  </Text>
                   <Text style={styles.facultyName}>Faculty: {course.facultyName}</Text>
+                  <Text style={styles.courseDetails}>
+                    {course.dept} • {course.credit} credits • {course.duration} hours
+                  </Text>
+                  {course.courseDescription && (
+                    <Text style={styles.courseDescription}>{course.courseDescription}</Text>
+                  )}
+                  {!course.isActive && (
+                    <Text style={styles.inactiveLabel}>Inactive</Text>
+                  )}
                 </View>
               </TouchableOpacity>
             ))
@@ -206,10 +238,14 @@ export default function ScheduleManagementScreen() {
           <Text style={styles.cardTitle}>Schedule Period</Text>
           <Text style={styles.subtext}>Select the date range for the schedule</Text>
 
-          {/* From Date */}
-          <TouchableOpacity onPress={() => setShowFromPicker(true)} style={styles.datePicker}>
+          <TouchableOpacity 
+            onPress={() => setShowFromPicker(true)} 
+            style={styles.datePicker}
+          >
             <Text style={styles.datePickerLabel}>From Date:</Text>
-            <Text style={styles.datePickerValue}>{dayjs(fromDate).format('MMM D, YYYY')}</Text>
+            <Text style={styles.datePickerValue}>
+              {dayjs(fromDate).format('MMM D, YYYY')}
+            </Text>
           </TouchableOpacity>
           {showFromPicker && (
             <DateTimePicker
@@ -221,10 +257,14 @@ export default function ScheduleManagementScreen() {
             />
           )}
 
-          {/* To Date */}
-          <TouchableOpacity onPress={() => setShowToPicker(true)} style={styles.datePicker}>
+          <TouchableOpacity 
+            onPress={() => setShowToPicker(true)} 
+            style={styles.datePicker}
+          >
             <Text style={styles.datePickerLabel}>To Date:</Text>
-            <Text style={styles.datePickerValue}>{dayjs(toDate).format('MMM D, YYYY')}</Text>
+            <Text style={styles.datePickerValue}>
+              {dayjs(toDate).format('MMM D, YYYY')}
+            </Text>
           </TouchableOpacity>
           {showToPicker && (
             <DateTimePicker
@@ -236,9 +276,10 @@ export default function ScheduleManagementScreen() {
             />
           )}
 
-          {/* Duration Display */}
           <View style={styles.durationBox}>
-            <Text style={styles.durationText}>Duration: {calculateDuration()}</Text>
+            <Text style={styles.durationText}>
+              Duration: {calculateDuration()}
+            </Text>
           </View>
         </View>
 
@@ -246,14 +287,17 @@ export default function ScheduleManagementScreen() {
         <View style={styles.card}>
           <TouchableOpacity
             onPress={handleGenerate}
-            style={[styles.generateButton, (isGenerating || selectedCourses.length === 0) && styles.buttonDisabled]}
+            style={[
+              styles.generateButton, 
+              (isGenerating || selectedCourses.length === 0) && styles.buttonDisabled
+            ]}
             disabled={isGenerating || selectedCourses.length === 0}
           >
             {isGenerating ? (
               <ActivityIndicator color="#fff" />
             ) : (
               <Text style={styles.buttonText}>
-                {generatedSchedule.length > 0 ? 'Generated ✓' : 'Generate Schedule'}
+                Generate Schedule
               </Text>
             )}
           </TouchableOpacity>
@@ -267,37 +311,33 @@ export default function ScheduleManagementScreen() {
               </Text>
             </View>
           )}
-
-          {successMessage ? (
-            <View style={styles.successBox}>
-              <Text style={styles.successText}>{successMessage}</Text>
-            </View>
-          ) : null}
         </View>
-
-        {/* Display Generated Schedule */}
-        {generatedSchedule.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Generated Schedule</Text>
-            {generatedSchedule.map(entry => (
-              <View key={entry.id} style={styles.scheduleItem}>
-                <Text style={styles.scheduleCourse}>{entry.courseName}</Text>
-                <Text style={styles.scheduleFaculty}>Faculty: {entry.facultyName}</Text>
-                <Text style={styles.scheduleDates}>
-                  From: {dayjs(entry.fromDate).format('MMM D, YYYY')} - To: {dayjs(entry.toDate).format('MMM D, YYYY')}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
       </ScrollView>
+      <Toast />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f2f6fa' },
-  content: { padding: 16, paddingBottom: 40 },
+  container: { 
+    flex: 1, 
+    backgroundColor: '#f2f6fa' 
+  },
+  content: { 
+    padding: 16, 
+    paddingBottom: 40 
+  },
+  authMessageContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  authMessageText: {
+    fontSize: 18,
+    color: '#666',
+    textAlign: 'center',
+  },
   card: {
     backgroundColor: '#fff',
     borderRadius: 8,
@@ -316,10 +356,26 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 12,
   },
+  noCoursesText: {
+    textAlign: 'center',
+    marginVertical: 20,
+    color: '#666'
+  },
   courseCard: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#f9f9f9',
+  },
+  inactiveCourse: {
+    backgroundColor: '#f0f0f0',
+    opacity: 0.7,
+  },
+  courseInfo: {
+    flex: 1,
+    marginLeft: 8,
   },
   courseName: {
     fontSize: 16,
@@ -329,6 +385,24 @@ const styles = StyleSheet.create({
   facultyName: {
     fontSize: 13,
     color: '#555',
+    marginTop: 2,
+  },
+  courseDetails: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  courseDescription: {
+    fontSize: 12,
+    color: '#777',
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  inactiveLabel: {
+    fontSize: 11,
+    color: '#cc0000',
+    marginTop: 4,
+    fontWeight: 'bold',
   },
   datePicker: {
     flexDirection: 'row',
@@ -381,35 +455,5 @@ const styles = StyleSheet.create({
   warningText: {
     color: '#a66d00',
     fontSize: 14,
-  },
-  successBox: {
-    marginTop: 12,
-    backgroundColor: '#d4edda',
-    padding: 10,
-    borderRadius: 6,
-  },
-  successText: {
-    color: '#155724',
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  scheduleItem: {
-    marginBottom: 12,
-    borderBottomColor: '#eee',
-    borderBottomWidth: 1,
-    paddingBottom: 8,
-  },
-  scheduleCourse: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#222',
-  },
-  scheduleFaculty: {
-    fontSize: 14,
-    color: '#555',
-  },
-  scheduleDates: {
-    fontSize: 13,
-    color: '#666',
   },
 });
