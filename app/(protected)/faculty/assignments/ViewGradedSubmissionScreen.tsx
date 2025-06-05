@@ -33,6 +33,7 @@ interface Submission {
   studentRollNumber: string;
   submittedAt: string;
   fileNo: string;
+  fileName:string;
   grade: string;
   feedback: string;
 }
@@ -160,7 +161,7 @@ const ViewGradedSubmissionScreen = () => {
     );
   }
 
-  const { studentName, studentRollNumber, submittedAt, fileNo, grade, feedback } = submission;
+  const { studentName, studentRollNumber, submittedAt, fileName, grade, feedback } = submission;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -187,7 +188,7 @@ const ViewGradedSubmissionScreen = () => {
           <Text style={styles.label}>File Number</Text>
           <View style={styles.docRow}>
             <FontAwesome5 name="file-pdf" size={16} color="white" style={styles.pdfIcon} />
-            <Text style={styles.docText}>{fileNo || 'Document.pdf'}</Text>
+            <Text style={styles.docText}>{fileName || 'Document.pdf'}</Text>
             <IconButton
               icon="download"
               size={18}

@@ -23,6 +23,7 @@ interface Submission {
   submittedAt: string;
   status: string;
   fileNo: string;
+  fileName:string;
 }
 
 const GradeSubmissionScreen = () => {
@@ -120,7 +121,7 @@ const GradeSubmissionScreen = () => {
           <Text style={styles.label}>Submitted Document</Text>
           <View style={styles.docRow}>
             <FontAwesome5 name="file-pdf" size={16} color="white" style={styles.pdfIcon} />
-            <Text style={styles.docText}>submission_{submission.fileNo}.pdf</Text>
+            <Text style={styles.docText}>submission_{submission.fileName}.pdf</Text>
             <IconButton
               icon="download"
               size={18}
