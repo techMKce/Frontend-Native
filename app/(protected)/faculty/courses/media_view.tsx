@@ -6,12 +6,24 @@ import {
   FlatList,
   Linking,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+
+// Define Content type if not imported elsewhere
+interface Content {
+  content_id: string;
+  contentType: 'Video' | 'Pdf';
+  content: string;
+  document?: string;
+  [key: string]: any;
+}
 
 interface MediaCompProps {
-  videos: any;
-  pdfs: any;
+  videos: Content[];
+  pdfs: Content[];
   onDelete: (id: string) => void;
 }
 
@@ -20,30 +32,49 @@ const MediaTabsComponent: React.FC<MediaCompProps> = ({
   pdfs = [],
   onDelete,
 }) => {
-  const [activeTab, setActiveTab] = useState('videos');
+  const [activeTab, setActiveTab] = useState<'videos' | 'pdfs'>('videos');
+  const [downloading, setDownloading] = useState<string | null>(null);
 
-  const tabs = [
-    { key: 'videos', title: 'Videos', icon: 'play-circle' },
-    { key: 'pdfs', title: 'PDFs', icon: 'file-pdf-o' },
-  ];
+  const handleDownload = async (content: Content) => {
+    if (!content.document) {
+      if (content.content) {
+        Linking.openURL(content.content);
+      }
+      return;
+    }
 
-  const handleLinkPress = (link: string, title: any, type: string) => {
-    if (link) {
-      Linking.openURL(link).catch((err) => {
-        console.error(`Failed to open ${type}:`, err);
+    try {
+      setDownloading(content.content_id);
+
+      const fileUri =
+        FileSystem.documentDirectory +
+        (content.content?.split('/').pop() || 'document.pdf');
+
+      const downloadResumable = FileSystem.createDownloadResumable(
+        content.content || '',
+        fileUri
+      );
+
+      const { uri } = await downloadResumable.downloadAsync();
+
+      await Sharing.shareAsync(uri, {
+        mimeType: 'application/pdf',
+        dialogTitle: 'Share PDF',
+        UTI: 'com.adobe.pdf',
       });
+    } catch (error) {
+      console.error('Download failed:', error);
+      Alert.alert('Error', 'Failed to download file');
+    } finally {
+      setDownloading(null);
     }
   };
 
-  const renderVideoItem = ({ item, index }) => (
+  const renderVideoItem = ({ item }: { item: Content }) => (
     <TouchableOpacity
-      key={`video-${index}`}
-      onPress={() => handleLinkPress(item.content, item.contentType, 'video')}
-      style={styles.mediaItem}
+      onPress={() => item.content && Linking.openURL(item.content)}
       onLongPress={() => onDelete(item.content_id)}
-      accessible
-      accessibilityRole="link"
-      accessibilityLabel={`Open Video: ${item.contentType}`}
+      style={styles.mediaItem}
     >
       <View style={styles.mediaContent}>
         <FontAwesome name="play-circle" size={20} color="#007BFF" />
@@ -56,23 +87,32 @@ const MediaTabsComponent: React.FC<MediaCompProps> = ({
     </TouchableOpacity>
   );
 
-  const renderPdfItem = ({ item, index }) => (
+  const renderPdfItem = ({ item }: { item: Content }) => (
     <TouchableOpacity
-      key={`pdf-${index}`}
-      onPress={() => handleLinkPress(item.content, item.contentType, 'PDF')}
+      onPress={() => handleDownload(item)}
       onLongPress={() => onDelete(item.content_id)}
       style={styles.mediaItem}
-      accessible
-      accessibilityRole="button"
-      accessibilityLabel={`Download PDF: ${item.contentType}`}
+      disabled={downloading === item.content_id}
     >
       <View style={styles.mediaContent}>
-        <FontAwesome name="file-pdf-o" size={20} color="#DC3545" />
+        <FontAwesome
+          name={downloading === item.content_id ? 'spinner' : 'file-pdf-o'}
+          size={20}
+          color="#DC3545"
+        />
         <View style={styles.mediaTextContainer}>
-          <Text style={styles.mediaTitle}>{item.content}</Text>
-          <Text style={styles.mediaSubtitle}>Tap to download</Text>
+          <Text style={styles.mediaTitle}>
+            {item.content ? item.content.split('/').pop() : 'PDF Document'}
+          </Text>
+          <Text style={styles.mediaSubtitle}>
+            {downloading === item.content_id ? 'Downloading...' : 'Tap to view'}
+          </Text>
         </View>
-        <FontAwesome name="download" size={16} color="#666" />
+        <FontAwesome
+          name={downloading === item.content_id ? 'spinner' : 'download'}
+          size={16}
+          color="#666"
+        />
       </View>
     </TouchableOpacity>
   );
@@ -107,32 +147,52 @@ const MediaTabsComponent: React.FC<MediaCompProps> = ({
     <View style={styles.container}>
       {/* Tab Bar */}
       <View style={styles.tabBar}>
-        {tabs.map((tab) => (
-          <TouchableOpacity
-            key={tab.key}
-            style={[styles.tab, activeTab === tab.key && styles.activeTab]}
-            onPress={() => setActiveTab(tab.key)}
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'videos' && styles.activeTab]}
+          onPress={() => setActiveTab('videos')}
+        >
+          <FontAwesome
+            name="play-circle"
+            size={18}
+            color={activeTab === 'videos' ? '#007BFF' : '#666'}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === 'videos' && styles.activeTabText,
+            ]}
           >
-            <FontAwesome
-              name={tab.icon}
-              size={18}
-              color={activeTab === tab.key ? '#007BFF' : '#666'}
-            />
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === tab.key && styles.activeTabText,
-              ]}
-            >
-              {tab.title}
-            </Text>
-            {getCurrentCount() > 0 && activeTab === tab.key && (
-              <View style={styles.badge}>
-                <Text style={styles.badgeText}>{getCurrentCount()}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
+            Videos
+          </Text>
+          {activeTab === 'videos' && getCurrentCount() > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{getCurrentCount()}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tab, activeTab === 'pdfs' && styles.activeTab]}
+          onPress={() => setActiveTab('pdfs')}
+        >
+          <FontAwesome
+            name="file-pdf-o"
+            size={18}
+            color={activeTab === 'pdfs' ? '#007BFF' : '#666'}
+          />
+          <Text
+            style={[
+              styles.tabText,
+              activeTab === 'pdfs' && styles.activeTabText,
+            ]}
+          >
+            PDFs
+          </Text>
+          {activeTab === 'pdfs' && getCurrentCount() > 0 && (
+            <View style={styles.badge}>
+              <Text style={styles.badgeText}>{getCurrentCount()}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
       </View>
 
       {/* Content Area */}

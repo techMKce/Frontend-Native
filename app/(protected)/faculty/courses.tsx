@@ -11,14 +11,15 @@ import {
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker'; // <-- Import Picker
-import api from '@/service/api'; // Your configured Axios instance
+import { Picker } from '@react-native-picker/picker';
+import api from '@/service/api';
 import { COLORS, SPACING, FONT, SIZES, SHADOWS } from '@/constants/theme';
 import { useRouter } from 'expo-router';
 import Header from '@/components/shared/Header';
 
 type Course = {
   course_id: string;
+  courseCode: string;
   courseTitle: string;
   courseDescription: string;
   duration: string;
@@ -38,8 +39,26 @@ const Courses = () => {
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Simulate fetching user info (replace with your real user fetch)
+  const [user, setUser] = useState<{ username: string; department: string }>({
+    username: '',
+    department: '',
+  });
+
+  useEffect(() => {
+    // Replace with your real user fetch logic
+    const fetchUser = async () => {
+      // Example: const res = await api.get('/user/me');
+      // setUser({ username: res.data.username, department: res.data.department });
+      setUser({ username: 'facultyuser', department: 'Computer Science' });
+    };
+    fetchUser();
+  }, []);
+
   const [newCourse, setNewCourse] = useState<Course>({
     course_id: '',
+    courseCode: '',
     courseTitle: '',
     courseDescription: '',
     duration: '',
@@ -54,7 +73,7 @@ const Courses = () => {
   const fetchCourses = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/course/details'); // Backend endpoint
+      const response = await api.get('/course/details');
       setCourses(response.data);
       setFilteredCourses(response.data);
     } catch (error) {
@@ -74,11 +93,12 @@ const Courses = () => {
     setIsEditing(false);
     setNewCourse({
       course_id: '',
+      courseCode: '',
       courseTitle: '',
       courseDescription: '',
       duration: '',
-      instructorName: '',
-      dept: '',
+      instructorName: user.username,
+      dept: user.department,
       credit: '',
       students: 0,
       imgurl: '',
@@ -98,6 +118,8 @@ const Courses = () => {
   const handleAddOrEditCourse = async () => {
     const preparedCourse = {
       ...newCourse,
+      instructorName: user.username,
+      dept: user.department,
       credit: Number(newCourse.credit || 0),
       duration: Number(newCourse.duration || 0),
       students: newCourse.students || 0,
@@ -114,11 +136,12 @@ const Courses = () => {
       setIsEditing(false);
       setNewCourse({
         course_id: '',
+        courseCode: '',
         courseTitle: '',
         courseDescription: '',
         duration: '',
-        instructorName: '',
-        dept: '',
+        instructorName: user.username,
+        dept: user.department,
         credit: '',
         students: 0,
         imgurl: '',
@@ -138,7 +161,7 @@ const Courses = () => {
   const fetchActiveCourses = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/course/active'); // Active courses endpoint
+      const response = await api.get('/course/active');
       setCourses(response.data);
       setFilteredCourses(response.data);
     } catch (error) {
@@ -165,41 +188,42 @@ const Courses = () => {
     try {
       await api.put('/course/disable', { course_id });
       alert('Course disabled successfully');
-      fetchCourses(); // Refresh the course list after disabling
+      fetchCourses();
     } catch (error) {
       console.error('Failed to disable course:', error);
     }
   };
 
   const renderCourse = ({ item }: { item: Course }) => (
-    console.log(`Rendering course: ${item.course_id}`),
-  <TouchableOpacity 
-    style={styles.courseCard}
-    onPress={() => router.push(`/faculty/coursedetails?courseId=${item.course_id}`)}
-  >
-    <Text style={styles.courseName}>{item.courseTitle}</Text>
-    <Text style={styles.courseDescription}>{item.courseDescription}</Text>
-    <Text style={styles.courseDescription}>Instructor: {item.instructorName}</Text>
-    <View style={styles.courseStats}>
-      <View style={styles.statItem}>
-        <Ionicons name="time-outline" size={16} color={COLORS.gray} />
-        <Text style={styles.statText}>{item.duration} weeks</Text>
+    <TouchableOpacity
+      style={styles.courseCard}
+      onPress={() => router.push(`/faculty/coursedetails?courseId=${item.course_id}`)}
+    >
+      <Text style={styles.courseName}>{item.courseTitle}</Text>
+      <Text style={styles.courseDescription}>{item.courseDescription}</Text>
+      <Text style={styles.courseDescription}>Course Code: {item.courseCode}</Text>
+      <Text style={styles.courseDescription}>Instructor: {item.instructorName}</Text>
+      <Text style={styles.courseDescription}>Department: {item.dept}</Text>
+      <View style={styles.courseStats}>
+        <View style={styles.statItem}>
+          <Ionicons name="time-outline" size={16} color={COLORS.gray} />
+          <Text style={styles.statText}>{item.duration} weeks</Text>
+        </View>
+        <View style={styles.statItem}>
+          <Ionicons name="book-outline" size={16} color={COLORS.gray} />
+          <Text style={styles.statText}>{item.credit} credits</Text>
+        </View>
       </View>
-      <View style={styles.statItem}>
-        <Ionicons name="book-outline" size={16} color={COLORS.gray} />
-        <Text style={styles.statText}>{item.credit} credits</Text>
+      <View style={styles.cardButtons}>
+        <TouchableOpacity onPress={() => handleEdit(item)} style={styles.editButton}>
+          <Text style={{ color: COLORS.primary }}>Edit</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={() => handleDelete(item.course_id)}>
+          <Text style={{ color: 'red' }}>Delete</Text>
+        </TouchableOpacity>
       </View>
-    </View>
-    <View style={styles.cardButtons}>
-      <TouchableOpacity onPress={() => handleEdit(item)} style={styles.editButton}>
-        <Text style={{ color: COLORS.primary }}>Edit</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => handleDelete(item.course_id)}>
-        <Text style={{ color: 'red' }}>Delete</Text>
-      </TouchableOpacity>
-    </View>
-  </TouchableOpacity>
-);
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
@@ -234,8 +258,16 @@ const Courses = () => {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>{isEditing ? 'Edit Course' : 'Add New Course'}</Text>
 
-            {/* Render text inputs for all fields except 'status' */}
-            {['courseTitle', 'courseDescription', 'instructorName', 'dept', 'duration', 'credit', 'imgurl'].map((field) => (
+            {/* Course Code input */}
+            <TextInput
+              style={styles.input}
+              placeholder="Course Code"
+              value={newCourse.courseCode}
+              onChangeText={text => setNewCourse({ ...newCourse, courseCode: text })}
+            />
+
+            {/* Render text inputs for all fields except 'status', 'instructorName', 'dept' */}
+            {['courseTitle', 'courseDescription', 'duration', 'credit', 'imgurl'].map((field) => (
               <TextInput
                 key={field}
                 style={styles.input}
@@ -246,16 +278,19 @@ const Courses = () => {
               />
             ))}
 
-            {/* Dropdown for status */}
-            <Text style={{ marginBottom: 4, fontFamily: FONT.medium }}>Status</Text>
-            <Picker
-              selectedValue={newCourse.status}
-              onValueChange={(itemValue) => setNewCourse({ ...newCourse, status: itemValue })}
-              style={styles.input}
-            >
-              <Picker.Item label="Active" value="Active" />
-              <Picker.Item label="Inactive" value="Inactive" />
-            </Picker>
+            {/* Show instructor and dept as read-only */}
+            <TextInput
+              style={[styles.input, { backgroundColor: COLORS.lightGray }]}
+              placeholder="Instructor"
+              value={user.username}
+              editable={false}
+            />
+            <TextInput
+              style={[styles.input, { backgroundColor: COLORS.lightGray }]}
+              placeholder="Department"
+              value={user.department}
+              editable={false}
+            />
 
             <View style={styles.modalButtons}>
               <Pressable style={[styles.modalButton, styles.cancelButton]} onPress={() => setIsModalVisible(false)}>

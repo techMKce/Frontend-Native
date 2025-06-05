@@ -226,8 +226,8 @@ export default function GradeSubmissionsScreen() {
               onPress={() => {
                 router.push({
                   pathname: item.grade
-                    ? '/(faculty)/assignments/ViewGradedSubmissionScreen'
-                    : '/(faculty)/assignments/GradeSubmissionScreen',
+                    ? '/faculty/assignments/ViewGradedSubmissionScreen'
+                    : '/faculty/assignments/GradeSubmissionScreen',
                   params: { id: item.id.toString() },
                 });
               }}

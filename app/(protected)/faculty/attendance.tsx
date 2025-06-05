@@ -7,7 +7,7 @@ import { Picker } from '@react-native-picker/picker';
 import Header from '@/components/shared/Header';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Calendar, Eye, Filter, Users, Clock, FileText, ArrowLeft } from 'lucide-react-native';
+import { Calendar, Eye, Filter, FileText, ArrowLeft } from 'lucide-react-native';
 import api from '@/service/api';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -52,12 +52,29 @@ type AttendanceRecord = {
   dates: string;
 };
 
+type UserProfile = {
+  id: string;
+  name: string;
+};
+
+type AuthProfile = {
+  profile: UserProfile;
+};
+
 const AttendanceScreen = () => {
   const { profile } = useAuth();
-  const user = profile?.profile;
+  const authProfile = profile as AuthProfile | undefined;
+  const user = authProfile?.profile;
+  
   const [filters, setFilters] = useState({
-    batch: '', course: '', department: '', semester: '', session: 'forenoon', date: new Date()
+    batch: '', 
+    course: '', 
+    department: '', 
+    semester: '', 
+    session: 'forenoon', 
+    date: new Date()
   });
+  
   const [showPicker, setShowPicker] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
@@ -74,37 +91,49 @@ const AttendanceScreen = () => {
     if (user?.id) {
       fetchFacultyCourses();
     }
-  }, [user]);
+  }, [user?.id]);
 
   const fetchFacultyCourses = async () => {
     try {
       setLoading(true);
-      // Fetch assigned courses and students
+      setError('');
       const assignResponse = await api.get(
         `/faculty-student-assigning/admin/faculty/${user?.id}`
       );
       
-      if (assignResponse.data && assignResponse.data.length > 0) {
-        const courseIds: string = (assignResponse.data as { courseId: string }[]).map((item: { courseId: string }) => item.courseId).join('&id=');
+      if (assignResponse.data?.length > 0) {
+        const courseIds = assignResponse.data
+          .map((item: { courseId: string }) => item.courseId)
+          .filter(Boolean)
+          .join('&id=');
         
-        // Fetch course details
+        if (!courseIds) {
+          setError('No valid course IDs found');
+          return;
+        }
+
         const courseResponse = await api.get(
           `/course/detailsbyId?id=${courseIds}`
         );
         
-        setCourses(courseResponse.data.map((course: any) => ({
-          courseId: course.course_id.toString(),
-          courseTitle: course.courseTitle,
-          courseDescription: course.courseDescription,
-          instructorName: course.instructorName,
-          dept: course.dept,
-          duration: course.duration,
-          credit: course.credit,
-          imageUrl: course.imageUrl
-        })));
+        if (courseResponse.data) {
+          setCourses(courseResponse.data.map((course: any) => ({
+            courseId: course.course_id?.toString() || '',
+            courseTitle: course.courseTitle || 'Untitled Course',
+            courseDescription: course.courseDescription || '',
+            instructorName: course.instructorName || '',
+            dept: course.dept || '',
+            duration: course.duration || 0,
+            credit: course.credit || 0,
+            imageUrl: course.imageUrl || ''
+          })));
+        }
+      } else {
+        setCourses([]);
+        setError('No courses assigned');
       }
     } catch (err) {
-      setError('Failed to fetch courses');
+      setError('Failed to fetch courses. Please try again.');
       console.error('Error fetching courses:', err);
     } finally {
       setLoading(false);
@@ -114,35 +143,55 @@ const AttendanceScreen = () => {
   const fetchStudentsForCourse = async (course: Course) => {
     try {
       setLoading(true);
+      setError('');
 
-      // Get assigned students for this course
       const assignResponse = await api.get(
         `/faculty-student-assigning/admin/faculty/${user?.id}`
       );
       
-      const courseAssignments = assignResponse.data.find(
+      const courseAssignments = assignResponse.data?.find(
         (item: any) => item.courseId === course.courseId
       );
       
-      if (courseAssignments) {
-        // Fetch each student's profile in parallel
+      if (courseAssignments?.assignedRollNums?.length > 0) {
         const studentDetails = await Promise.all(
           courseAssignments.assignedRollNums.map(async (rollNum: string) => {
-            const res = await api.get(`/profile/student/${rollNum}`);
-            return {
-              ...res.data,
-              courseId: course.courseId,
-              courseName: course.courseTitle
-            };
+            try {
+              const res = await api.get(`/profile/student/${rollNum}`);
+              return {
+                stdId: res.data?.stdId || '',
+                stdName: res.data?.stdName || '',
+                rollNum: res.data?.rollNum || '',
+                deptId: res.data?.deptId || '',
+                deptName: res.data?.deptName || '',
+                batch: res.data?.batch || '',
+                sem: res.data?.sem || 0,
+                courseId: course.courseId,
+                courseName: course.courseTitle
+              };
+            } catch (err) {
+              console.error(`Error fetching student ${rollNum}:`, err);
+              return null;
+            }
           })
         );
 
-        setStudents(studentDetails);
+        const validStudents = studentDetails.filter(student => student?.stdId) as Student[];
+        setStudents(validStudents);
         setSelectedCourse(course);
         setShowCourseSelection(false);
+        
+        // Initialize attendance state
+        const initialAttendance = validStudents.reduce((acc: Record<string, boolean>, student) => {
+          acc[student.stdId] = false;
+          return acc;
+        }, {});
+        setAttendance(initialAttendance);
+      } else {
+        setError('No students assigned to this course');
       }
     } catch (err) {
-      setError('Failed to fetch students');
+      setError('Failed to fetch students. Please try again.');
       console.error('Error fetching students:', err);
     } finally {
       setLoading(false);
@@ -154,31 +203,37 @@ const AttendanceScreen = () => {
   };
 
   const submitAttendance = async () => {
-    if (!selectedCourse || !user) return;
+    if (!selectedCourse || !user?.id) return;
     try {
       setLoading(true);
       const dateStr = filters.date.toISOString().split('T')[0];
       
-      const attendanceRecords = students.map(student => ({
-        stdId: student.stdId,
-        stdName: student.stdName,
-        facultyId: user.id,
-        facultyName: user.name || "Faculty Name",
-        status: attendance[student.stdId] ? 1 : 0,
-        session: filters.session,
-        courseId: selectedCourse.courseId,
-        courseName: selectedCourse.courseTitle,
-        batch: student.batch,
-        deptId: student.deptId,
-        deptName: student.deptName,
-        sem: student.sem,
-        dates: dateStr
-      }));
+      const attendanceRecords = students
+        .filter(student => student.stdId)
+        .map(student => ({
+          stdId: student.stdId,
+          stdName: student.stdName,
+          facultyId: user.id,
+          facultyName: user.name || "Faculty",
+          status: attendance[student.stdId] ? 1 : 0,
+          session: filters.session,
+          courseId: selectedCourse.courseId,
+          courseName: selectedCourse.courseTitle,
+          batch: student.batch,
+          deptId: student.deptId,
+          deptName: student.deptName,
+          sem: student.sem,
+          dates: dateStr
+        }));
       
-      await api.post('/attupdate', attendanceRecords);
-      setShowStats(true);
+      if (attendanceRecords.length > 0) {
+        await api.post('/attupdate', attendanceRecords);
+        setShowStats(true);
+      } else {
+        setError('No valid attendance records to submit');
+      }
     } catch (err) {
-      setError('Failed to submit attendance');
+      setError('Failed to submit attendance. Please try again.');
       console.error('Error submitting attendance:', err);
     } finally {
       setLoading(false);
@@ -193,29 +248,30 @@ const AttendanceScreen = () => {
     } else {
       try {
         setLoading(true);
-        if (!selectedCourse) return;
+        if (!selectedCourse || !user?.id) return;
         
         const dateStr = filters.date.toISOString().split('T')[0];
         const response = await api.get(
-          `/getfaculty?id=${user?.id}&date=${dateStr}`
+          `/getfaculty?id=${user.id}&date=${dateStr}`
         );
         
-        // Filter records for the selected course and session
-        const filteredRecords = response.data.filter(
-          (record: AttendanceRecord) => 
-            record.courseId === selectedCourse.courseId && 
-            record.session === filters.session
-        );
-        
-        const attendanceData = filteredRecords.reduce((acc: Record<string, boolean>, record: AttendanceRecord) => {
-          acc[record.stdId] = record.status === 1;
-          return acc;
-        }, {});
-        
-        setAttendance(attendanceData);
-        setViewMode(true);
+        if (response.data) {
+          const filteredRecords = response.data.filter(
+            (record: AttendanceRecord) => 
+              record.courseId === selectedCourse.courseId && 
+              record.session === filters.session
+          );
+          
+          const attendanceData = filteredRecords.reduce((acc: Record<string, boolean>, record: AttendanceRecord) => {
+            acc[record.stdId] = record.status === 1;
+            return acc;
+          }, {});
+          
+          setAttendance(attendanceData);
+          setViewMode(true);
+        }
       } catch (err) {
-        setError('Failed to fetch attendance records');
+        setError('Failed to fetch attendance records. Please try again.');
         console.error('Error fetching attendance:', err);
       } finally {
         setLoading(false);
@@ -230,7 +286,14 @@ const AttendanceScreen = () => {
     setShowStats(false);
     setViewMode(false);
     setAttendance({});
-    setFilters({ batch: '', course: '', department: '', semester: '', session: 'forenoon', date: new Date() });
+    setFilters({ 
+      batch: '', 
+      course: '', 
+      department: '', 
+      semester: '', 
+      session: 'forenoon', 
+      date: new Date() 
+    });
   };
 
   const total = students.length;
@@ -249,7 +312,13 @@ const AttendanceScreen = () => {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity onPress={resetAttendance}>
+        <TouchableOpacity 
+          style={styles.retryButton}
+          onPress={() => {
+            setError('');
+            resetAttendance();
+          }}
+        >
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -263,11 +332,9 @@ const AttendanceScreen = () => {
       {showCourseSelection ? (
         <View style={{ flex: 1 }}>
           <View style={styles.topToolbar}>
-            {!viewMode && (
-              <TouchableOpacity onPress={() => setShowModal(true)}>
-                <Filter size={24} color={COLORS.primary} />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity onPress={() => setShowModal(true)}>
+              <Filter size={24} color={COLORS.primary} />
+            </TouchableOpacity>
             <TouchableOpacity onPress={toggleViewAttendance}>
               <Eye size={24} color={viewMode ? COLORS.primary : COLORS.gray} />
             </TouchableOpacity>
@@ -459,8 +526,6 @@ const AttendanceScreen = () => {
   );
 };
 
-
-
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -636,18 +701,6 @@ const styles = StyleSheet.create({
     fontSize: SIZES.md,
     color: COLORS.darkGray,
   },
-  backButton: {
-    marginTop: SPACING.md,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    ...SHADOWS.small,
-  },
-  backButtonText: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
-    color: COLORS.white,
-  },
   emptyText: {
     fontFamily: FONT.regular,
     fontSize: SIZES.md,
@@ -662,10 +715,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: SPACING.md,
   },
+  retryButton: {
+    marginTop: SPACING.md,
+    padding: SPACING.md,
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    alignSelf: 'center',
+    ...SHADOWS.small,
+  },
   retryText: {
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
-    color: COLORS.primary,
+    color: COLORS.white,
     textAlign: 'center',
   },
   modalOverlay: {

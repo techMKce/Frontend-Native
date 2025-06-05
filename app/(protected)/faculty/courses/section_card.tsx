@@ -14,12 +14,17 @@ import FontAwesome from '@expo/vector-icons/FontAwesome';
 import api from '@/service/api';
 import MediaTabsComponent from './media_view';
 import * as Haptics from 'expo-haptics';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import FileUploader from '@/components/FileUploader'; // <-- adjust path as needed
 
-type Content = {
-  content_id: string;
-  contentType: string;
+// Define Content type if not imported
+interface Content {
+  id: number;
+  contentType: 'Video' | 'Pdf';
   content: string;
-};
+  [key: string]: any;
+}
 
 interface SectionCardProps {
   id: number;
@@ -27,7 +32,6 @@ interface SectionCardProps {
   desc: string;
   courseId: number;
   onrefresh: () => void;
-  // onDelete: (sectionId: number) => void;
 }
 
 const SectionCard: React.FC<SectionCardProps> = ({
@@ -40,23 +44,27 @@ const SectionCard: React.FC<SectionCardProps> = ({
   const [showAddContentForm, setShowAddContentForm] = useState(false);
   const [isUpdate, setUpdate] = useState(false);
   const [contents, setContents] = useState<Content[]>([]);
-  const [videoUrl, setVideoUrl] = useState('');
+  const [contentUrl, setContentUrl] = useState('');
+  const [contentType, setContentType] = useState<'Video' | 'Pdf'>('Video');
   const [loading, setLoading] = useState(true);
-  const [pdfUrl, setPdfUrl] = useState('');
   const [titleSec, setTitle] = useState(title);
   const [scription, setScript] = useState(desc);
 
+  type FileInfo = {
+    uri: string;
+    name: string;
+    type?: string;
+  };
+  const [documentFile, setDocumentFile] = useState<FileInfo | null>(null);
+
   useEffect(() => {
-    fetchCourseDetails();
+    fetchContentDetails();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchCourseDetails = async () => {
+  const fetchContentDetails = async () => {
     try {
-      const response = await api.get(
-        `/course/section/content/details?id=${id}`
-      );
-      console.log(id);
-      console.log('<><><>M<><', response.data);
+      const response = await api.get(`/course/section/content/details?id=${id}`);
       setContents(response.data);
     } catch (error) {
       console.log('Error fetching content details:', error);
@@ -68,59 +76,65 @@ const SectionCard: React.FC<SectionCardProps> = ({
   const deleteContent = async (content_id: number) => {
     try {
       setLoading(true);
-
-      const response = await api.delete('/course/section/content/delete', {
-        data: JSON.stringify(content_id), // ✅ Send raw ID
+      await api.delete('/course/section/content/delete', {
+        data: { content_id },
         headers: {
-          'Content-Type': 'application/json', // ✅ Required
+          'Content-Type': 'application/json',
         },
       });
-
-      if (response.status === 200) {
-        await fetchCourseDetails();
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        showToast('✅ Content deleted successfully!', 'Success');
-      }
+      await fetchContentDetails();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      showToast('✅ Content deleted successfully!', 'Success');
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showToast('❌ Failed to delete content', 'Error');
       console.log(error);
     } finally {
       setLoading(false);
-      onrefresh(); // Call the refresh function passed as a prop
+      onrefresh();
     }
   };
 
-  const addContent = async (
-    contentType: string,
-    content: string,
-    section_id: number
-  ) => {
+  const addContent = async () => {
     try {
       setLoading(true);
-      const requestBody = {
-        contentType,
-        content,
-        section: { section_id },
-      };
-      console.log('Request Body:', requestBody);
-      const response = await api.post(
-        '/course/section/content/add',
-        requestBody
-      );
+
+      const formData = new FormData();
+      formData.append('contentType', contentType);
+      formData.append('section_id', id.toString());
+
+      if (contentType === 'Video') {
+        formData.append('content', contentUrl);
+      } else {
+        if (documentFile) {
+          formData.append('document', {
+            uri: documentFile.uri,
+            name: documentFile.name,
+            type: documentFile.type || 'application/pdf',
+          } as any);
+        }
+      }
+
+      const response = await api.post('/course/section/content/add', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
       if (response.status === 200 || response.status === 201) {
-        await fetchCourseDetails();
+        await fetchContentDetails();
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showToast('✅ Content added successfully!', 'Success');
+        setShowAddContentForm(false);
       }
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       showToast('❌ Failed to add content', 'Error');
       console.log(error);
     } finally {
-      setPdfUrl('');
-      setVideoUrl('');
       setLoading(false);
+      setContentUrl('');
+      setDocumentFile(null);
     }
   };
 
@@ -128,9 +142,9 @@ const SectionCard: React.FC<SectionCardProps> = ({
     try {
       setLoading(true);
       const response = await api.delete('/course/section/delete', {
-        data: JSON.stringify(section_id), // ✅ send raw number as stringified body
+        data: { section_id }, // <-- send as object, not stringified
         headers: {
-          'Content-Type': 'application/json', // ✅ ensure content-type is correct
+          'Content-Type': 'application/json',
         },
       });
       if (response.status === 200) {
@@ -143,7 +157,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
       console.log(error);
     } finally {
       setLoading(false);
-      onrefresh(); // Call the refresh function passed as a prop
+      onrefresh();
     }
   };
 
@@ -158,9 +172,10 @@ const SectionCard: React.FC<SectionCardProps> = ({
       };
       const response = await api.put('/course/section/update', requestBody);
       if (response.status >= 200 && response.status < 300) {
-        await fetchCourseDetails();
+        // await fetchCourseDetails(); // <-- Remove this, not defined
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         showToast('✅ Section updated successfully!', 'Success');
+        onrefresh(); // <-- Ensure refresh after update
       }
     } catch (error) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -169,7 +184,6 @@ const SectionCard: React.FC<SectionCardProps> = ({
     } finally {
       setLoading(false);
       setUpdate(false);
-      onrefresh(); // Call the refresh function passed as a prop
     }
   };
 
@@ -195,16 +209,16 @@ const SectionCard: React.FC<SectionCardProps> = ({
       <View style={styles.headerRow}>
         <View style={{ flex: 1 }}>
           <Text onPress={() => setUpdate(true)} style={styles.sectionTitle}>
-            {title} 📝
+            {titleSec} 📝
           </Text>
-          {desc && <Text style={styles.itemDescription}>{desc}</Text>}
+          {scription && <Text style={styles.itemDescription}>{scription}</Text>}
         </View>
         <View style={styles.actionRow}>
           <TouchableOpacity
             onPress={() => {
               setShowAddContentForm(true);
             }}
-            disabled={loading} // Disable when loading
+            disabled={loading}
             style={{
               borderWidth: 2,
               borderColor: loading ? '#ccc' : '#007BFF',
@@ -228,7 +242,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
             onPress={() => {
               deleteSection(id);
             }}
-            disabled={loading} // Disable when loading
+            disabled={loading}
             style={{
               borderColor: loading ? '#ccc' : '#DC3545',
               borderWidth: 2,
@@ -251,28 +265,9 @@ const SectionCard: React.FC<SectionCardProps> = ({
       </View>
       {/* Loading State or Media Tabs Component */}
       {loading ? (
-        <View
-          style={{
-            height: 120,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: '#f8f9fa',
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: '#e9ecef',
-          }}
-        >
+        <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#007BFF" />
-          <Text
-            style={{
-              marginTop: 12,
-              color: '#666',
-              fontSize: 16,
-              fontWeight: '500',
-            }}
-          >
-            Loading content...
-          </Text>
+          <Text style={styles.loadingText}>Loading content...</Text>
         </View>
       ) : contents.length > 0 ? (
         <View style={{ minHeight: 300 }}>
@@ -283,146 +278,86 @@ const SectionCard: React.FC<SectionCardProps> = ({
           />
         </View>
       ) : (
-        <View
-          style={{
-            height: 120,
-            justifyContent: 'center',
-            alignItems: 'center',
-            backgroundColor: '#f8f9fa',
-            borderRadius: 8,
-            borderWidth: 1,
-            borderColor: '#e9ecef',
-            borderStyle: 'dashed',
-          }}
-        >
+        <View style={styles.emptyContainer}>
           <FontAwesome name="folder-open" size={40} color="#ccc" />
-          <Text
-            style={{
-              marginTop: 8,
-              color: '#666',
-              fontSize: 16,
-              fontWeight: '500',
-            }}
-          >
-            No Content Added
-          </Text>
-          <Text
-            style={{
-              color: '#999',
-              fontSize: 14,
-              marginTop: 4,
-            }}
-          >
+          <Text style={styles.emptyText}>No Content Added</Text>
+          <Text style={{ color: '#999', fontSize: 14, marginTop: 4 }}>
             Add videos or PDFs to get started
           </Text>
         </View>
       )}
       {showAddContentForm && (
-        <View
-          style={{
-            marginTop: 20,
-            padding: 10,
-            backgroundColor: '#f9f9f9',
-            borderRadius: 5,
-          }}
-        >
-          {/* Video Form */}
-          <Text>Video</Text>
-          <View>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginBottom: 10,
-              }}
-            >
-              <TextInput
-                style={{
-                  flex: 1,
-                  borderWidth: 1,
-                  borderColor: '#ccc',
-                  borderRadius: 5,
-                  padding: 8,
-                  marginRight: 10,
-                }}
-                placeholder="Video URL"
-                onChangeText={setVideoUrl}
-              />
-              <TouchableOpacity
-                style={{
-                  backgroundColor: '#007BFF',
-                  paddingVertical: 8,
-                  paddingHorizontal: 15,
-                  borderRadius: 5,
-                }}
-                onPress={() => {
-                  addContent('Video', videoUrl, id);
-                }}
-              >
-                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Add</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          {/* PDF Form */}
-          <Text>Pdf</Text>
-          <View>
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginBottom: 10,
-              }}
-            >
-              <TextInput
-                style={{
-                  flex: 1,
-                  borderWidth: 1,
-                  borderColor: '#ccc',
-                  borderRadius: 5,
-                  padding: 8,
-                  marginRight: 10,
-                }}
-                placeholder="Pdf URL"
-                // value={{}}
-                onChangeText={setPdfUrl}
-              />
-              <TouchableOpacity
-                style={{
-                  backgroundColor: '#007BFF',
-                  paddingVertical: 8,
-                  paddingHorizontal: 15,
-                  borderRadius: 5,
-                }}
-                onPress={() => {
-                  addContent('Pdf', pdfUrl, id);
-                }}
-              >
-                <Text style={{ color: '#fff', fontWeight: 'bold' }}>Add</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          {/* Action Buttons */}
-          <View
-            style={{
-              flexDirection: 'row',
-              justifyContent: 'flex-start',
-              marginTop: 20,
-            }}
-          >
+        <View style={styles.addContentForm}>
+          <View style={styles.contentTypeSelector}>
             <TouchableOpacity
-              style={{
-                backgroundColor: '#007BFF',
-                paddingVertical: 8,
-                paddingHorizontal: 15,
-                borderRadius: 5,
-                alignItems: 'center',
-              }}
-              onPress={() => {
-                setShowAddContentForm(false);
-              }}
+              style={[
+                styles.typeButton,
+                contentType === 'Video' && styles.activeTypeButton,
+              ]}
+              onPress={() => setContentType('Video')}
             >
-              <Text style={{ color: '#fff', fontWeight: 'bold' }}>
-                Fininsh Adding
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  contentType === 'Video' && styles.activeTypeButtonText,
+                ]}
+              >
+                Video
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.typeButton,
+                contentType === 'Pdf' && styles.activeTypeButton,
+              ]}
+              onPress={() => setContentType('Pdf')}
+            >
+              <Text
+                style={[
+                  styles.typeButtonText,
+                  contentType === 'Pdf' && styles.activeTypeButtonText,
+                ]}
+              >
+                PDF
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {contentType === 'Video' ? (
+            <>
+              <Text>Video URL</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Enter video URL"
+                value={contentUrl}
+                onChangeText={setContentUrl}
+              />
+            </>
+          ) : (
+            <>
+              <Text>PDF Document</Text>
+              <FileUploader
+                files={documentFile ? [documentFile] : []}
+                onFilesSelected={(files) => setDocumentFile(files[0])}
+                accept="application/pdf"
+              />
+            </>
+          )}
+
+          <View style={styles.formActions}>
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={() => setShowAddContentForm(false)}
+            >
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.submitButton}
+              onPress={addContent}
+              disabled={loading || (contentType === 'Video' ? !contentUrl : !documentFile)}
+            >
+              <Text style={styles.buttonText}>
+                {loading ? 'Adding...' : 'Add Content'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -541,6 +476,54 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: '#fff',
     fontWeight: 'bold',
+  },
+  addContentForm: {
+    marginTop: 20,
+    padding: 15,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+  },
+  contentTypeSelector: {
+    flexDirection: 'row',
+    marginBottom: 15,
+    gap: 10,
+  },
+  typeButton: {
+    flex: 1,
+    padding: 10,
+    borderRadius: 6,
+    backgroundColor: '#e9ecef',
+    alignItems: 'center',
+  },
+  activeTypeButton: {
+    backgroundColor: '#007BFF',
+  },
+  typeButtonText: {
+    color: '#333',
+    fontWeight: '500',
+  },
+  activeTypeButtonText: {
+    color: '#fff',
+  },
+  formActions: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 15,
+    gap: 10,
+  },
+  cancelButton: {
+    padding: 10,
+    borderRadius: 6,
+    backgroundColor: '#6c757d',
+  },
+  submitButton: {
+    padding: 10,
+    borderRadius: 6,
+    backgroundColor: '#007BFF',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: '500',
   },
 });
 
