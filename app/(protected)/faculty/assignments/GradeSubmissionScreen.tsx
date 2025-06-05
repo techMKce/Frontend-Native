@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import api from '@/service/api';
+import Header from '@/components/shared/Header';
 
 interface Submission {
   assignmentId: string;
@@ -91,6 +92,7 @@ const GradeSubmissionScreen = () => {
   }
 
   return (
+    <><Header title="Grades" />
     <ScrollView contentContainerStyle={styles.container}>
       <TouchableOpacity onPress={() => navigation.goBack()}>
         <Text style={styles.backLink}>{'< Back to All Submissions'}</Text>
@@ -216,6 +218,7 @@ const GradeSubmissionScreen = () => {
         </Card.Content>
       </Card>
     </ScrollView>
+    </>
   );
 };
 

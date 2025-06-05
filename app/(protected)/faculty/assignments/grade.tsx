@@ -14,6 +14,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useNavigation } from '@react-navigation/native'; // Add this import
 import * as WebBrowser from 'expo-web-browser';
 import api from '@/service/api';
+import Header from '@/components/shared/Header';
 
 interface StudentSubmission {
   id: number;
@@ -143,13 +144,17 @@ export default function GradeSubmissionsScreen() {
   }
 
   return (
+    //<View
+    <>
+    <Header title="Grades" />
     <View style={styles.container}>
-      <TouchableOpacity
+     
+      {/* <TouchableOpacity
         onPress={() => router.push(`/faculty/courses?courseId=${courseId}`)}
         style={styles.backLink}
       >
         <Text style={styles.backLinkText}>← Back to courses</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       <Text style={styles.header}>Grade Submissions</Text>
       <Text style={styles.subheader}>{assignmentTitle || '—'}</Text>
@@ -229,6 +234,7 @@ export default function GradeSubmissionsScreen() {
 )}
       />
     </View>
+    </>
   );
 }
 

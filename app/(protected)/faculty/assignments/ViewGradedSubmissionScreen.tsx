@@ -14,6 +14,7 @@ import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import api from '@/service/api';
+import Header from '@/components/shared/Header';
 
 // Define interfaces for type safety
 interface Grading {
@@ -164,6 +165,7 @@ const ViewGradedSubmissionScreen = () => {
   const { studentName, studentRollNumber, submittedAt, fileName, grade, feedback } = submission;
 
   return (
+    <><Header title="Grades" />
     <ScrollView contentContainerStyle={styles.container}>
       <TouchableOpacity onPress={() => router.back()}>
         <Text style={styles.backLink}>{'< Back to All Submissions'}</Text>
@@ -263,6 +265,7 @@ const ViewGradedSubmissionScreen = () => {
         </Card.Content>
       </Card>
     </ScrollView>
+    </>
   );
 };
 
