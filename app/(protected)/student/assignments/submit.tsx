@@ -17,7 +17,7 @@ interface Assignment {
   courseId: string;
   status: string;
   grade: string | null;
-  fileNo: string | null;
+  fileName: string | null;
   feedback: string | null;
 }
 
@@ -40,8 +40,8 @@ export default function SubmitAssignmentScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { id } = useLocalSearchParams();
-  const assignmentId = id as string;
+  const { assignmentId: rawAssignmentId } = useLocalSearchParams();
+  const assignmentId = Array.isArray(rawAssignmentId) ? rawAssignmentId[0] : rawAssignmentId || '';
   const studentName = 'John Doe';
   const studentRollNumber = 'STU123';
   const studentDepartment = 'CSE';
@@ -128,7 +128,7 @@ export default function SubmitAssignmentScreen() {
         submittedAt: new Date().toISOString(),
       });
       setSelectedFile(null);
-      router.replace('/assignments');
+      // router.replace('/assignments');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'An error occurred while submitting the assignment');
     }
@@ -162,7 +162,7 @@ export default function SubmitAssignmentScreen() {
         submittedAt: new Date().toISOString(),
       });
       setSelectedFile(null);
-      router.replace('/assignments');
+      // router.replace('/assignments');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'An error occurred while editing the submission');
     }
@@ -188,7 +188,7 @@ export default function SubmitAssignmentScreen() {
   };
 
   const handleDownloadFacultyFile = async () => {
-    if (!assignment?.fileNo) {
+    if (!assignment?.fileName) {
       setError('No faculty file available for download');
       return;
     }
@@ -198,7 +198,7 @@ export default function SubmitAssignmentScreen() {
         responseType: 'blob',
       });
 
-      const fileName = `faculty_file_${assignment.fileNo}.pdf`;
+      const fileName = `faculty_file_${assignment.fileName}.pdf`;
       const url = window.URL.createObjectURL(new Blob([response.data]));
 
       if (Platform.OS === 'web') {
@@ -227,7 +227,7 @@ export default function SubmitAssignmentScreen() {
   };
 
   const handleViewFacultyFile = async () => {
-    if (!assignment?.fileNo) {
+    if (!assignment?.fileName) {
       setError('No faculty file available to view');
       return;
     }
@@ -320,11 +320,11 @@ export default function SubmitAssignmentScreen() {
 
           <Text style={styles.description}>{assignment.description || 'No description provided'}</Text>
 
-          {assignment.fileNo && (
+          {assignment.fileName && (
             <View style={styles.facultyFileContainer}>
               <View style={styles.fileRow}>
                 <Text style={styles.metaInfo}>
-                  {assignment.fileNo}
+                  {assignment.fileName}
                 </Text>
                 <View style={styles.fileActions}>
                   <TouchableOpacity style={styles.iconButton} onPress={handleViewFacultyFile}>
@@ -514,7 +514,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: COLORS.accent,
+    backgroundColor: COLORS.success,
     borderRadius: 8,
     padding: SPACING.md,
     marginBottom: SPACING.md,

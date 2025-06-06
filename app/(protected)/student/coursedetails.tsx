@@ -95,7 +95,7 @@ export default function Displaycourses() {
   const fetchAssignments = async () => {
     setAssignmentsLoading(true);
     try {
-      const response = await api.get(`/assignments/course/${id}`);
+      const response = await api.get(`/assignments/course?courseId=${id}`);
       setAssignments(response.data.assignments);
       console.log('Assignments API response:', response.data);
     } catch (error: any) {

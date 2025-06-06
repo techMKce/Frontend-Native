@@ -153,13 +153,13 @@ export default function StudentAssignmentsScreen() {
 
     if (status === 'submitted') {
       router.push({
-        pathname: '/assignments/resubmit',
+        pathname: '/student/assignments/resubmit',
         params: { id: assignment.assignmentId },
       });
     } else if (status === 'pending') {
       if (isOverdue) {
         router.push({
-          pathname: '/assignments/overdue',
+          pathname: '/student/assignments/overdue',
           params: {
             id: assignment.assignmentId,
             title: assignment.title,
@@ -169,7 +169,7 @@ export default function StudentAssignmentsScreen() {
         });
       } else {
         router.push({
-          pathname: '/assignments/submit',
+          pathname: '/student/assignments/submit',
           params: { id: assignment.assignmentId },
         });
       }

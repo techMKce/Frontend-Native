@@ -142,12 +142,12 @@ export default function GradeSubmissionsScreen() {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity
-        onPress={() => router.push('/(faculty)/assignments')}
+      {/* <TouchableOpacity
+        onPress={() => router.push('/studnet/assignments')}
         style={styles.backLink}
       >
         <Text style={styles.backLinkText}>← Back to Assignments</Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
 
       <Text style={styles.header}>Grade Submissions</Text>
       <Text style={styles.subheader}>{assignmentTitle || '—'}</Text>
