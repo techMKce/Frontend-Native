@@ -31,8 +31,9 @@ export default function FacultyDashboard() {
         // Fetch student count
         const studentsRes = await api.get(
           `/faculty-student-assigning/admin/faculty/${profile.profile.id}/count`
-        );
-        setTotalStudents(studentsRes.data?.count || 0);
+          );
+        setTotalStudents(studentsRes.data || 0); 
+
 
         // Fetch total courses count
         const coursesRes = await api.get('/course/count');
