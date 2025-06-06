@@ -24,6 +24,7 @@ import {
   ChevronRight,
   X,
   Award,
+  Calendar,
 } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import api from '@/service/api';
@@ -301,21 +302,28 @@ export default function StudentDashboard() {
           </View>
         </View>
 
-        <View style={{ height: 100 }} />
+        
 
         {/* Exam Timetable Card */}
-        <View style={styles.examTimetableCard}>
-  
-          <Text style={styles.examTimetableText}>
-            Download your <Text style={styles.examHighlight}>Exam Timetable</Text>
-          </Text>
-          <TouchableOpacity
-            style={styles.viewTimetableButton}
-            onPress={() => router.push('/exam-timetable')}
-          >
-            <Text style={styles.viewTimetableText}>View Full Timetable</Text>
-          </TouchableOpacity>
+        <View style={styles.sectionContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Exam Timetable</Text>
+            <Calendar size={24} color={COLORS.primary} />
+          </View>
+
+          <View style={styles.examTimetableCard}>
+            <Text style={styles.examTimetableText}>
+              Download your <Text style={styles.examHighlight}>Exam Timetable</Text>
+            </Text>
+            <TouchableOpacity
+              style={styles.viewTimetableButton}
+              onPress={() => router.push('/exam-timetable')}
+            >
+              <Text style={styles.viewTimetableText}>View Full Timetable</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
       </ScrollView>
 
       {/* Enrolled Courses Modal */}
@@ -564,12 +572,13 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'column',
+    marginBottom: SPACING.lg,
     gap: SPACING.md,
   },
   statCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
-    padding: SPACING.md,
+    padding: SPACING.lg,
     flexDirection: 'row',
     alignItems: 'center',
     ...SHADOWS.small,
@@ -594,12 +603,12 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontFamily: FONT.bold,
-    fontSize: SIZES.lg,
+    fontSize: SIZES.xl,
     color: COLORS.darkGray,
   },
   statLabel: {
     fontFamily: FONT.regular,
-    fontSize: SIZES.xs,
+    fontSize: SIZES.md,
     color: COLORS.gray,
   },
   modalContainer: {
@@ -724,35 +733,53 @@ const styles = StyleSheet.create({
     color: COLORS.darkGray,
     lineHeight: 20,
   },
-  examTimetableCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: SPACING.md,
-    marginTop: SPACING.md,
-    alignItems: 'center',
-    ...SHADOWS.small,
-  },
-  examTimetableText: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.md,
-    color: COLORS.darkGray,
-    marginBottom: SPACING.sm,
-    textAlign: 'center',
-  },
-  examHighlight: {
-    color: COLORS.primary,
-    fontWeight: 'bold',
-  },
-  viewTimetableButton: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.lg,
-    marginTop: SPACING.sm,
-  },
-  viewTimetableText: {
-    color: COLORS.white,
-    fontFamily: FONT.medium,
-    fontSize: SIZES.md,
-  },
+  sectionContainer: {
+      marginBottom: SPACING.lg,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: SPACING.md,
+    },
+    sectionTitle: {
+      fontFamily: FONT.semiBold,
+      fontSize: SIZES.lg,
+      color: COLORS.darkGray,
+    },
+    viewAllText: {
+      fontFamily: FONT.medium,
+      fontSize: SIZES.md,
+      color: COLORS.primary,
+    },
+   examTimetableCard: {
+      backgroundColor: COLORS.white,
+      borderRadius: 12,
+      padding: SPACING.md,
+      ...SHADOWS.small,
+    },
+    examTimetableText: {
+      fontFamily: FONT.regular,
+      fontSize: SIZES.md,
+      color: COLORS.darkGray,
+      marginBottom: SPACING.md,
+      textAlign: 'center',
+    },
+    examHighlight: { 
+      fontFamily: FONT.semiBold, 
+      color: COLORS.primary,
+      fontSize: SIZES.md,
+    },
+    viewTimetableButton: {
+      backgroundColor: COLORS.primary,
+      borderRadius: 8,
+      paddingVertical: SPACING.md,
+      paddingHorizontal: SPACING.md,
+      alignSelf: 'center',
+    },
+    viewTimetableText: {
+      fontFamily: FONT.medium,
+      fontSize: SIZES.sm,
+      color: COLORS.white,
+    },
 });

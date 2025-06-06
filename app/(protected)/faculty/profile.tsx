@@ -8,6 +8,8 @@ import { Mail, Phone, CalendarClock, User, MapPin, Briefcase } from 'lucide-reac
 import profileApi from '@/service/api';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import RNPickerSelect from 'react-native-picker-select';
+import { SafeAreaView } from 'react-native-safe-area-context'; // <-- Import SafeAreaView
+
 
 type ProfileData = {
   id: string;
@@ -263,22 +265,22 @@ export default function FacultyProfileScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.container}>
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={{ marginTop: 12, color: COLORS.gray }}>Loading...</Text>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <ProfileHeader
-        name={profileData.name}
-        role="Faculty"
-        profileImage={profileData.profilePicture}
-        canEdit={true}
-        onEditPress={() => setShowEdit(p => !p)}
-      />
+    <SafeAreaView style={{ flex: 1 }}>
+      <ScrollView style={styles.container}>
+        <ProfileHeader
+          name={profileData.name}
+          role="Student"
+          profileImage={profileData.image}
+          canEdit={true}
+          onEditPress={() => setShowEdit(p => !p)}
+        />
 
       {showEdit ? (
         <View style={styles.editSection}>
@@ -491,6 +493,7 @@ export default function FacultyProfileScreen() {
 
       <View style={{ height: 80 }} />
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -524,27 +527,41 @@ const pickerSelectStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: SPACING.md,
     backgroundColor: COLORS.background,
+  },
+  buttonContainer: {
+    padding: SPACING.md,
+    marginBottom: SPACING.lg,
+    
   },
   actionButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
-    padding: SPACING.sm,
+    padding: SPACING.lg,
     alignItems: 'center',
-    marginBottom: SPACING.lg,
-    ...SHADOWS.small,
   },
   actionButtonText: {
+    color: COLORS.white,
+    fontFamily: FONT.semiBold,
+  },
+  
+  saveButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    padding: SPACING.md,
+    alignItems: 'center',
+    marginVertical: SPACING.lg,
+  },
+  saveButtonText: {
     color: COLORS.white,
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
   },
   editSection: {
+    marginBottom: SPACING.lg,
     backgroundColor: COLORS.white,
     borderRadius: 12,
     padding: SPACING.md,
-    ...SHADOWS.small,
   },
   imageContainer: {
     alignItems: 'center',
@@ -554,28 +571,36 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    borderWidth: 2,
-    borderColor: COLORS.lightGray,
   },
   imageText: {
     marginTop: 8,
     color: COLORS.primary,
     fontFamily: FONT.medium,
-    fontSize: SIZES.sm,
   },
   label: {
     fontFamily: FONT.medium,
-    color: COLORS.darkGray,
+    color: COLORS.gray,
     marginBottom: 4,
-    fontSize: SIZES.sm,
   },
   input: {
-    padding: 12,
+    backgroundColor: COLORS.white,
+    padding: 10,
     borderRadius: 8,
-    fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
     borderWidth: 1,
-    borderColor: '#ccc',
+    borderColor: COLORS.lightGray,
+  },
+  disabledInput: {
+    backgroundColor: '#f0f0f0',
+    color: COLORS.darkGray,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  picker: {
+    backgroundColor: COLORS.white,
   },
   sectionContainer: {
     marginBottom: SPACING.lg,
@@ -586,22 +611,27 @@ const styles = StyleSheet.create({
     color: COLORS.darkGray,
     marginBottom: SPACING.sm,
   },
+  subSectionTitle: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.sm,
+    color: COLORS.primary,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+  },
   infoCard: {
     backgroundColor: COLORS.white,
     padding: SPACING.md,
     borderRadius: 12,
     marginBottom: SPACING.sm,
-    ...SHADOWS.small,
   },
   infoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   infoLabelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    width: '40%',
   },
   infoLabel: {
     fontFamily: FONT.medium,
@@ -610,10 +640,14 @@ const styles = StyleSheet.create({
     marginLeft: 6,
   },
   infoValue: {
-    fontFamily: FONT.regular,
+    fontFamily: FONT.semiBold,
     fontSize: SIZES.sm,
     color: COLORS.darkGray,
-    width: '55%',
-    textAlign: 'right',
   },
+  educationHeader: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.sm,
+    color: COLORS.primary,
+    marginBottom: SPACING.sm,
+  }
 });

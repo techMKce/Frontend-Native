@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Image, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context'; // <-- Import SafeAreaView
 import * as ImagePicker from 'expo-image-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
@@ -214,21 +215,22 @@ export default function StudentProfileScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+      <SafeAreaView style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <ScrollView style={styles.container}>
-      <ProfileHeader
-        name={profileData.name}
-        role="Student"
-        profileImage={profileData.image}
-        canEdit={true}
-        onEditPress={() => setShowEdit(p => !p)}
-      />
+    <SafeAreaView style={{ flex: 1 }}>
+      <ScrollView style={styles.container}>
+        <ProfileHeader
+          name={profileData.name}
+          role="Student"
+          profileImage={profileData.image}
+          canEdit={true}
+          onEditPress={() => setShowEdit(p => !p)}
+        />
 
       {showEdit ? (
         <View style={styles.editSection}>
@@ -336,6 +338,7 @@ export default function StudentProfileScreen() {
 
       <View style={{ height: 80 }} />
     </ScrollView>
+    </SafeAreaView>
   );
 }
 
@@ -352,22 +355,24 @@ const InfoRow = ({ icon, label, value }: { icon: React.ReactNode; label: string;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: SPACING.md,
     backgroundColor: COLORS.background,
   },
   buttonContainer: {
+    padding: SPACING.md,
     marginBottom: SPACING.lg,
+    
   },
   actionButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
-    padding: SPACING.sm,
+    padding: SPACING.lg,
     alignItems: 'center',
   },
   actionButtonText: {
     color: COLORS.white,
     fontFamily: FONT.semiBold,
   },
+  
   saveButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,

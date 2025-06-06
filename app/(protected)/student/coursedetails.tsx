@@ -57,6 +57,7 @@ export default function Displaycourses() {
   const [sections, setSections] = useState<Section[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const { profile } = useAuth();
   const studentId = profile?.profile?.id;
@@ -66,10 +67,16 @@ export default function Displaycourses() {
   useEffect(() => {
     if (id) {
       fetchCourseDetails();
-      if (activeIndex === 1) fetchAssignments();
     }
     // eslint-disable-next-line
-  }, [id, activeIndex]);
+  }, [id]);
+
+  useEffect(() => {
+    if (id && activeIndex === 1) {
+      fetchAssignments();
+    }
+    // eslint-disable-next-line
+  }, [activeIndex, id]);
 
   const fetchCourseDetails = async () => {
     try {
@@ -86,14 +93,15 @@ export default function Displaycourses() {
   };
 
   const fetchAssignments = async () => {
-    setLoading(true);
+    setAssignmentsLoading(true);
     try {
       const response = await api.get(`/assignments/course/${id}`);
       setAssignments(response.data.assignments);
+      console.log('Assignments API response:', response.data);
     } catch (error: any) {
       Alert.alert('Error', 'Unable to load assignments');
     } finally {
-      setLoading(false);
+      setAssignmentsLoading(false);
     }
   };
 
@@ -135,10 +143,14 @@ export default function Displaycourses() {
                   <Ionicons name="school-outline" size={16} color="#007BFF" />
                   <Text style={styles.metaText}>{course.credit} Credits</Text>
                 </View>
-                <View style={[
-                  styles.statusBadge,
-                  { backgroundColor: course.isActive ? '#28a745' : '#dc3545' }
-                ]}>
+                <View
+                  style={[
+                    styles.statusBadge,
+                    {
+                      backgroundColor: course.isActive ? '#28a745' : '#dc3545',
+                    },
+                  ]}
+                >
                   <Text style={styles.statusText}>
                     {course.isActive ? 'Active' : 'Inactive'}
                   </Text>
@@ -154,7 +166,7 @@ export default function Displaycourses() {
             onPress={async () => {
               if (course?.course_id && profile?.profile?.id) {
                 try {
-                  const response = await api.post("/course-enrollment", {
+                  const response = await api.post('/course-enrollment', {
                     courseId: course.course_id,
                     rollNum: profile.profile.id,
                   });
@@ -163,7 +175,10 @@ export default function Displaycourses() {
                   Alert.alert('Error', 'Failed to enroll in course.');
                 }
               } else {
-                Alert.alert('Error', 'Course or profile information is missing.');
+                Alert.alert(
+                  'Error',
+                  'Course or profile information is missing.'
+                );
               }
             }}
           >
@@ -184,10 +199,12 @@ export default function Displaycourses() {
                 onPress={() => setActiveIndex(idx)}
                 activeOpacity={0.7}
               >
-                <Text style={[
-                  styles.tabText,
-                  activeIndex === idx && styles.activeTabText
-                ]}>
+                <Text
+                  style={[
+                    styles.tabText,
+                    activeIndex === idx && styles.activeTabText,
+                  ]}
+                >
                   {item}
                 </Text>
                 {activeIndex === idx && <View style={styles.tabIndicator} />}
@@ -200,8 +217,12 @@ export default function Displaycourses() {
             <View style={styles.tabContent}>
               {sections.length === 0 ? (
                 <View style={styles.emptyState}>
-                  <View style={styles.emptyIconContainer}>
-                    <Ionicons name="library-outline" size={60} color="#007BFF" />
+                  <View className="emptyIconContainer">
+                    <Ionicons
+                      name="library-outline"
+                      size={60}
+                      color="#007BFF"
+                    />
                   </View>
                   <Text style={styles.emptyStateTitle}>No Sections Yet</Text>
                   <Text style={styles.emptyStateText}>
@@ -214,11 +235,17 @@ export default function Displaycourses() {
                     <View key={section.section_id} style={styles.sectionCard}>
                       <View style={styles.sectionHeader}>
                         <View style={styles.sectionNumber}>
-                          <Text style={styles.sectionNumberText}>{index + 1}</Text>
+                          <Text style={styles.sectionNumberText}>
+                            {index + 1}
+                          </Text>
                         </View>
                         <View style={styles.sectionContent}>
-                          <Text style={styles.sectionTitle}>{section.sectionTitle}</Text>
-                          <Text style={styles.sectionDesc}>{section.sectionDesc}</Text>
+                          <Text style={styles.sectionTitle}>
+                            {section.sectionTitle}
+                          </Text>
+                          <Text style={styles.sectionDesc}>
+                            {section.sectionDesc}
+                          </Text>
                         </View>
                       </View>
                     </View>
@@ -232,7 +259,12 @@ export default function Displaycourses() {
           {activeIndex === 1 && (
             <View style={styles.tabContent}>
               <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+                <Ionicons
+                  name="search"
+                  size={20}
+                  color="#999"
+                  style={styles.searchIcon}
+                />
                 <TextInput
                   style={styles.searchInput}
                   placeholder="Search assignments..."
@@ -242,10 +274,19 @@ export default function Displaycourses() {
                 />
               </View>
 
-              {filteredAssignments.length === 0 ? (
+              {assignmentsLoading ? (
+                <View style={styles.loadingContainer}>
+                  <ActivityIndicator size="large" color="#007BFF" />
+                  <Text style={styles.loadingText}>Loading assignments...</Text>
+                </View>
+              ) : filteredAssignments.length === 0 ? (
                 <View style={styles.emptyState}>
                   <View style={styles.emptyIconContainer}>
-                    <Ionicons name="document-text-outline" size={60} color="#007BFF" />
+                    <Ionicons
+                      name="document-text-outline"
+                      size={60}
+                      color="#007BFF"
+                    />
                   </View>
                   <Text style={styles.emptyStateTitle}>No Assignments Yet</Text>
                   <Text style={styles.emptyStateText}>
@@ -253,12 +294,26 @@ export default function Displaycourses() {
                   </Text>
                 </View>
               ) : (
-                <View>
-                  {filteredAssignments.map((item, index) => (
-                    <View key={item.assignmentId} style={styles.assignmentCard}>
+                <FlatList
+                  data={filteredAssignments}
+                  keyExtractor={(item) => item.assignmentId}
+                  contentContainerStyle={{ paddingBottom: 40 }}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={styles.assignmentCard}
+                      onPress={() =>
+                        router.push({
+                          pathname: '/student/assignments/submit',
+                          params: { assignmentId: item.assignmentId },
+                        })
+                      }
+                      activeOpacity={0.8}
+                    >
                       <View style={styles.assignmentHeader}>
                         <View style={styles.assignmentInfo}>
-                          <Text style={styles.assignmentTitle}>{item.title}</Text>
+                          <Text style={styles.assignmentTitle}>
+                            {item.title}
+                          </Text>
                           {item.description && (
                             <Text style={styles.assignmentDescription}>
                               {item.description}
@@ -266,23 +321,32 @@ export default function Displaycourses() {
                           )}
                           {item.dueDate && (
                             <View style={styles.dueDateContainer}>
-                              <Ionicons name="calendar-outline" size={14} color="#dc3545" />
+                              <Ionicons
+                                name="calendar-outline"
+                                size={14}
+                                color="#dc3545"
+                              />
                               <Text style={styles.assignmentDueDate}>
-                                Due: {format(new Date(item.dueDate), 'MMM dd, yyyy HH:mm')}
+                                Due:{' '}
+                                {format(
+                                  new Date(item.dueDate),
+                                  'MMM dd, yyyy HH:mm'
+                                )}
                               </Text>
                             </View>
                           )}
                         </View>
-                        <TouchableOpacity
-                          style={styles.actionButton}
-                          onPress={() => handleViewSubmission(item.assignmentId)}
-                        >
-                          <FontAwesome name="arrow-right" size={20} color="#007BFF" />
-                        </TouchableOpacity>
+                        <View style={styles.actionButton}>
+                          <FontAwesome
+                            name="arrow-right"
+                            size={20}
+                            color="#007BFF"
+                          />
+                        </View>
                       </View>
-                    </View>
-                  ))}
-                </View>
+                    </TouchableOpacity>
+                  )}
+                />
               )}
             </View>
           )}
