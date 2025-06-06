@@ -1,132 +1,123 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
-import { Users, BookOpen, Calendar, ChevronRight, ChartBar as BarChart } from 'lucide-react-native';
+import { Users, BookOpen, Calendar } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import api from '@/service/api';
 
-const mockDashboardData = {
-  totalStudents: 120,
-  activeCourses: 4,
-  attendanceToday: 85,
-  upcomingClasses: [
-    { id: '1', name: 'Advanced Database Systems', time: '10:00 AM', students: 30 },
-    { id: '2', name: 'Web Development', time: '2:00 PM', students: 25 },
-  ],
-  recentAttendance: [
-    { id: '1', course: 'Data Structures', date: '2024-03-10', present: 28, total: 30 },
-    { id: '2', course: 'Algorithms', date: '2024-03-09', present: 25, total: 30 },
-  ],
-};
+interface Course {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
 
 export default function FacultyDashboard() {
   const { profile } = useAuth();
   const user = profile?.profile;
-  const router = useRouter(); 
+  const router = useRouter();
+
+  const [totalStudents, setTotalStudents] = useState<number | null>(null);
+  const [totalCourses, setTotalCourses] = useState<number | null>(null);
+  const [activeCourses, setActiveCourses] = useState<number | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      try {
+        if (!profile?.profile?.id) return;
+
+        // Fetch student count
+        const studentsRes = await api.get(
+          `/faculty-student-assigning/admin/faculty/${profile.profile.id}/count`
+        );
+        setTotalStudents(studentsRes.data?.count || 0);
+
+        // Fetch total courses count
+        const coursesRes = await api.get('/course/count');
+        setTotalCourses(coursesRes.data || 0);
+
+        // Fetch active courses
+        const activeCoursesRes = await api.get('/course/active');
+        if (activeCoursesRes.data && Array.isArray(activeCoursesRes.data)) {
+          setActiveCourses(activeCoursesRes.data.length);
+        } else {
+          setActiveCourses(0);
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard data:', error);
+        Alert.alert('Error', 'Failed to load dashboard data');
+        setActiveCourses(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDashboardData();
+  }, [profile?.profile?.id]);
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <ActivityIndicator size="large" color={COLORS.primary} />
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <Header title={`Welcome, ${user?.name.split(' ')[0] || 'Faculty'}`} />
-
-      <ScrollView style={styles.scrollContainer}>
+      <Header title={`Welcome, ${user?.name?.split(' ')[0] || 'Faculty'}`} />
+      <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        {/* Stats - Now vertical */}
         <View style={styles.statsContainer}>
           <View style={[styles.statCard, styles.studentsCard]}>
             <View style={styles.statIconContainer}>
-              <Users size={24} color={COLORS.primary} />
+              <Users size={28} color={COLORS.primary} />
             </View>
             <View>
-              <Text style={styles.statValue}>{mockDashboardData.totalStudents}</Text>
+              <Text style={styles.statValue}>{totalStudents ?? 'N/A'}</Text>
               <Text style={styles.statLabel}>Total Students</Text>
             </View>
           </View>
 
           <View style={[styles.statCard, styles.coursesCard]}>
             <View style={styles.statIconContainer}>
-              <BookOpen size={24} color={COLORS.secondary} />
+              <BookOpen size={28} color={COLORS.secondary} />
             </View>
             <View>
-              <Text style={styles.statValue}>{mockDashboardData.activeCourses}</Text>
+              <Text style={styles.statValue}>{totalCourses ?? 'N/A'}</Text>
+              <Text style={styles.statLabel}>Total Courses</Text>
+            </View>
+          </View>
+
+          <View style={[styles.statCard, styles.activeCoursesCard]}>
+            <View style={styles.statIconContainer}>
+              <BookOpen size={28} color={COLORS.accent} />
+            </View>
+            <View>
+              <Text style={styles.statValue}>{activeCourses ?? 'N/A'}</Text>
               <Text style={styles.statLabel}>Active Courses</Text>
             </View>
           </View>
-
-          <View style={[styles.statCard, styles.attendanceCard]}>
-            <View style={styles.statIconContainer}>
-              <BarChart size={24} color={COLORS.accent} />
-            </View>
-            <View>
-              <Text style={styles.statValue}>{mockDashboardData.attendanceToday}%</Text>
-              <Text style={styles.statLabel}>Today's Attendance</Text>
-            </View>
-          </View>
         </View>
 
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Upcoming Classes</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View Schedule</Text>
-            </TouchableOpacity>
-          </View>
-
-          {mockDashboardData.upcomingClasses.map((classItem) => (
-            <TouchableOpacity key={classItem.id} style={styles.classCard}>
-              <View style={styles.classInfo}>
-                <Text style={styles.className}>{classItem.name}</Text>
-                <Text style={styles.classTime}>{classItem.time}</Text>
-              </View>
-              <View style={styles.classStudents}>
-                <Users size={16} color={COLORS.gray} />
-                <Text style={styles.studentsCount}>{classItem.students} students</Text>
-              </View>
-              <ChevronRight size={20} color={COLORS.gray} />
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Recent Attendance</Text>
-            <TouchableOpacity>
-              <Text style={styles.viewAllText}>View All</Text>
-            </TouchableOpacity>
-          </View>
-
-          {mockDashboardData.recentAttendance.map((record) => (
-            <TouchableOpacity key={record.id} style={styles.attendanceCard}>
-              <View style={styles.attendanceInfo}>
-                <Text style={styles.courseName}>{record.course}</Text>
-                <Text style={styles.attendanceDate}>
-                  {new Date(record.date).toLocaleDateString()}
-                </Text>
-              </View>
-              <View style={styles.attendanceStats}>
-                <Text style={styles.attendanceCount}>
-                  {record.present}/{record.total}
-                </Text>
-                <Text style={styles.attendancePercentage}>
-                  {Math.round((record.present / record.total) * 100)}%
-                </Text>
-              </View>
-              <ChevronRight size={20} color={COLORS.gray} />
-            </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* ──────────── Exam Timetable ──────────── */}
+        {/* Exam Timetable */}
         <View style={styles.sectionContainer}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Exam Timetable</Text>
-            <Calendar size={20} color={COLORS.primary} />
+            <Calendar size={24} color={COLORS.primary} />
           </View>
 
           <View style={styles.examTimetableCard}>
             <Text style={styles.examTimetableText}>
-              Download your{' '}
-              <Text style={styles.examHighlight}>Exam Timetable</Text>
+              Download your <Text style={styles.examHighlight}>Exam Timetable</Text>
             </Text>
-            <TouchableOpacity style={styles.viewTimetableButton} onPress={() => router.push('/exam-timetable')}>
+            <TouchableOpacity
+              style={styles.viewTimetableButton}
+              onPress={() => router.push('/exam-timetable')}
+            >
               <Text style={styles.viewTimetableText}>View Full Timetable</Text>
             </TouchableOpacity>
           </View>
@@ -143,48 +134,55 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  loadingContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: SPACING.md,
+    fontFamily: FONT.regular,
+    fontSize: SIZES.lg,
+    color: COLORS.gray,
+  },
   scrollContainer: {
     flex: 1,
     padding: SPACING.md,
   },
   statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     marginBottom: SPACING.lg,
-    flexWrap: 'wrap',
-    gap: SPACING.sm,
+    gap: SPACING.md,
   },
   statCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
-    padding: SPACING.md,
-    flex: 1,
-    minWidth: '30%',
+    padding: SPACING.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
     ...SHADOWS.small,
   },
   studentsCard: {
-    borderTopColor: COLORS.primary,
-    borderTopWidth: 3,
+    borderLeftColor: COLORS.primary,
+    borderLeftWidth: 4,
   },
   coursesCard: {
-    borderTopColor: COLORS.secondary,
-    borderTopWidth: 3,
+    borderLeftColor: COLORS.secondary,
+    borderLeftWidth: 4,
   },
-  attendanceCard: {
-    borderTopColor: COLORS.accent,
-    borderTopWidth: 3,
+  activeCoursesCard: {
+    borderLeftColor: COLORS.accent,
+    borderLeftWidth: 4,
   },
   statIconContainer: {
-    marginBottom: SPACING.sm,
+    marginRight: SPACING.lg,
   },
   statValue: {
     fontFamily: FONT.bold,
-    fontSize: SIZES.lg,
+    fontSize: SIZES.xl,
     color: COLORS.darkGray,
   },
   statLabel: {
     fontFamily: FONT.regular,
-    fontSize: SIZES.xs,
+    fontSize: SIZES.md,
     color: COLORS.gray,
   },
   sectionContainer: {
@@ -198,81 +196,18 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
+    fontSize: SIZES.lg,
     color: COLORS.darkGray,
   },
   viewAllText: {
     fontFamily: FONT.medium,
-    fontSize: SIZES.sm,
-    color: COLORS.primary,
-  },
-  classCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: SPACING.md,
-    marginBottom: SPACING.sm,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...SHADOWS.small,
-  },
-  classInfo: {
-    flex: 1,
-  },
-  className: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
-    color: COLORS.darkGray,
-    marginBottom: 2,
-  },
-  classTime: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
-    color: COLORS.gray,
-  },
-  classStudents: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: SPACING.md,
-  },
-  studentsCount: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.sm,
-    color: COLORS.gray,
-    marginLeft: SPACING.xs,
-  },
-  attendanceInfo: {
-    flex: 1,
-  },
-  courseName: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
-    color: COLORS.darkGray,
-    marginBottom: 2,
-  },
-  attendanceDate: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
-    color: COLORS.gray,
-  },
-  attendanceStats: {
-    alignItems: 'flex-end',
-    marginRight: SPACING.md,
-  },
-  attendanceCount: {
-    fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
     color: COLORS.primary,
   },
-  attendancePercentage: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
-    color: COLORS.gray,
-  },
-  /* exam timetable */
   examTimetableCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
-    padding: SPACING.lg,
+    padding: SPACING.md,
     ...SHADOWS.small,
   },
   examTimetableText: {
@@ -282,11 +217,15 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
     textAlign: 'center',
   },
-  examHighlight: { fontFamily: FONT.semiBold, color: COLORS.primary },
+  examHighlight: { 
+    fontFamily: FONT.semiBold, 
+    color: COLORS.primary,
+    fontSize: SIZES.md,
+  },
   viewTimetableButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
-    paddingVertical: SPACING.sm,
+    paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.md,
     alignSelf: 'center',
   },

@@ -65,16 +65,16 @@ const AttendanceScreen = () => {
   const { profile } = useAuth();
   const authProfile = profile as AuthProfile | undefined;
   const user = authProfile?.profile;
-  
+
   const [filters, setFilters] = useState({
-    batch: '', 
-    course: '', 
-    department: '', 
-    semester: '', 
-    session: 'forenoon', 
+    batch: '',
+    course: '',
+    department: '',
+    semester: '',
+    session: 'forenoon',
     date: new Date()
   });
-  
+
   const [showPicker, setShowPicker] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
@@ -91,6 +91,7 @@ const AttendanceScreen = () => {
     if (user?.id) {
       fetchFacultyCourses();
     }
+    // eslint-disable-next-line
   }, [user?.id]);
 
   const fetchFacultyCourses = async () => {
@@ -100,22 +101,23 @@ const AttendanceScreen = () => {
       const assignResponse = await api.get(
         `/faculty-student-assigning/admin/faculty/${user?.id}`
       );
-      
+
       if (assignResponse.data?.length > 0) {
         const courseIds = assignResponse.data
           .map((item: { courseId: string }) => item.courseId)
           .filter(Boolean)
           .join('&id=');
-        
+
         if (!courseIds) {
           setError('No valid course IDs found');
+          setCourses([]);
           return;
         }
 
         const courseResponse = await api.get(
           `/course/detailsbyId?id=${courseIds}`
         );
-        
+
         if (courseResponse.data) {
           setCourses(courseResponse.data.map((course: any) => ({
             courseId: course.course_id?.toString() || '',
@@ -123,16 +125,20 @@ const AttendanceScreen = () => {
             courseDescription: course.courseDescription || '',
             instructorName: course.instructorName || '',
             dept: course.dept || '',
-            duration: course.duration || 0,
-            credit: course.credit || 0,
+            duration: Number(course.duration) || 0,
+            credit: Number(course.credit) || 0,
             imageUrl: course.imageUrl || ''
           })));
+        } else {
+          setCourses([]);
+          setError('No courses found');
         }
       } else {
         setCourses([]);
         setError('No courses assigned');
       }
     } catch (err) {
+      setCourses([]);
       setError('Failed to fetch courses. Please try again.');
       console.error('Error fetching courses:', err);
     } finally {
@@ -148,11 +154,11 @@ const AttendanceScreen = () => {
       const assignResponse = await api.get(
         `/faculty-student-assigning/admin/faculty/${user?.id}`
       );
-      
+
       const courseAssignments = assignResponse.data?.find(
         (item: any) => item.courseId === course.courseId
       );
-      
+
       if (courseAssignments?.assignedRollNums?.length > 0) {
         const studentDetails = await Promise.all(
           courseAssignments.assignedRollNums.map(async (rollNum: string) => {
@@ -180,7 +186,7 @@ const AttendanceScreen = () => {
         setStudents(validStudents);
         setSelectedCourse(course);
         setShowCourseSelection(false);
-        
+
         // Initialize attendance state
         const initialAttendance = validStudents.reduce((acc: Record<string, boolean>, student) => {
           acc[student.stdId] = false;
@@ -188,9 +194,11 @@ const AttendanceScreen = () => {
         }, {});
         setAttendance(initialAttendance);
       } else {
+        setStudents([]);
         setError('No students assigned to this course');
       }
     } catch (err) {
+      setStudents([]);
       setError('Failed to fetch students. Please try again.');
       console.error('Error fetching students:', err);
     } finally {
@@ -207,7 +215,7 @@ const AttendanceScreen = () => {
     try {
       setLoading(true);
       const dateStr = filters.date.toISOString().split('T')[0];
-      
+
       const attendanceRecords = students
         .filter(student => student.stdId)
         .map(student => ({
@@ -225,7 +233,7 @@ const AttendanceScreen = () => {
           sem: student.sem,
           dates: dateStr
         }));
-      
+
       if (attendanceRecords.length > 0) {
         await api.post('/attupdate', attendanceRecords);
         setShowStats(true);
@@ -249,24 +257,24 @@ const AttendanceScreen = () => {
       try {
         setLoading(true);
         if (!selectedCourse || !user?.id) return;
-        
+
         const dateStr = filters.date.toISOString().split('T')[0];
         const response = await api.get(
           `/getfaculty?id=${user.id}&date=${dateStr}`
         );
-        
+
         if (response.data) {
           const filteredRecords = response.data.filter(
-            (record: AttendanceRecord) => 
-              record.courseId === selectedCourse.courseId && 
+            (record: AttendanceRecord) =>
+              record.courseId === selectedCourse.courseId &&
               record.session === filters.session
           );
-          
+
           const attendanceData = filteredRecords.reduce((acc: Record<string, boolean>, record: AttendanceRecord) => {
             acc[record.stdId] = record.status === 1;
             return acc;
           }, {});
-          
+
           setAttendance(attendanceData);
           setViewMode(true);
         }
@@ -286,13 +294,13 @@ const AttendanceScreen = () => {
     setShowStats(false);
     setViewMode(false);
     setAttendance({});
-    setFilters({ 
-      batch: '', 
-      course: '', 
-      department: '', 
-      semester: '', 
-      session: 'forenoon', 
-      date: new Date() 
+    setFilters({
+      batch: '',
+      course: '',
+      department: '',
+      semester: '',
+      session: 'forenoon',
+      date: new Date()
     });
   };
 
@@ -312,7 +320,7 @@ const AttendanceScreen = () => {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.retryButton}
           onPress={() => {
             setError('');

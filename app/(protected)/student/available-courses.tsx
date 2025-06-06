@@ -1,130 +1,145 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   TextInput,
   FlatList,
-  ActivityIndicator,
+  Modal,
+  Pressable,
+  StyleSheet,
+  TouchableOpacity,
 } from 'react-native';
-import { COLORS, FONT, SIZES, SPACING } from '@/constants/theme';
+import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
+import api from '@/service/api'; // Your configured Axios instance
+import { COLORS, SPACING, FONT, SIZES, SHADOWS } from '@/constants/theme';
+import { useRouter } from 'expo-router';
 import Header from '@/components/shared/Header';
-import CourseCard, { Course } from '@/components/student/CourseCard';
-import { Search } from 'lucide-react-native';
 
-const mockCourses: Course[] = [
-  {
-    id: '1',
-    name: 'Introduction to Computer Science',
-    description:
-      'A foundational course covering the basics of computer science, algorithms, and programming concepts.',
-    faculty: 'Dr. John Smith',
-    credits: 4,
-    duration: '16 weeks',
-    image: 'https://images.pexels.com/photos/2582937/pexels-photo-2582937.jpeg',
-  },
-  {
-    id: '2',
-    name: 'Advanced Database Systems',
-    description:
-      'This course covers advanced topics in database design, query optimization, and distributed databases.',
-    faculty: 'Dr. Lisa Johnson',
-    credits: 3,
-    duration: '12 weeks',
-    image: 'https://images.pexels.com/photos/5496463/pexels-photo-5496463.jpeg',
-  },
-  {
-    id: '3',
-    name: 'Artificial Intelligence',
-    description:
-      'An introduction to artificial intelligence concepts, machine learning algorithms, and neural networks.',
-    faculty: 'Prof. Michael Lee',
-    credits: 4,
-    duration: '16 weeks',
-    image: 'https://images.pexels.com/photos/8386440/pexels-photo-8386440.jpeg',
-  },
-  {
-    id: '4',
-    name: 'Web Development',
-    description:
-      'Learn modern web development techniques, frameworks, and best practices for building responsive web applications.',
-    faculty: 'Dr. Sarah Williams',
-    credits: 3,
-    duration: '12 weeks',
-    image: 'https://images.pexels.com/photos/270348/pexels-photo-270348.jpeg',
-  },
-  {
-    id: '5',
-    name: 'Data Structures and Algorithms',
-    description:
-      'A comprehensive study of data structures, algorithms, and their analysis for efficient problem-solving.',
-    faculty: 'Prof. Robert Chen',
-    credits: 4,
-    duration: '16 weeks',
-    image: 'https://images.pexels.com/photos/7095/people-coffee-notes-tea.jpg',
-  },
-];
+type Course = {
+  course_id: string;
+  courseTitle: string;
+  courseDescription: string;
+  duration: string;
+  instructorName: string;
+  dept: string;
+  credit: string;
+  students: number;
+  imgurl: string;
+  status: 'Active' | 'Inactive';
+};
 
-export default function AvailableCoursesScreen() {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [enrollingCourseId, setEnrollingCourseId] = useState<string | null>(null);
-  const [enrolledCourses, setEnrolledCourses] = useState<string[]>([]); // course ids
+const Courses = () => {
+  const navigation = useNavigation<any>();
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filteredCourses, setFilteredCourses] = useState<Course[]>([]);
 
-  const handleEnroll = (courseId: string) => {
-    setEnrollingCourseId(courseId);
-      setEnrolledCourses((prev) => [...prev, courseId]);
-      setEnrollingCourseId(null);
+
+  const fetchCourses = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/course/details'); // Backend endpoint
+      setCourses(response.data);
+      setFilteredCourses(response.data);
+    } catch (error) {
+      console.error('Failed to fetch courses:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const filteredCourses = mockCourses.filter(
-    (course) =>
-      course.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      course.faculty.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const router = useRouter();
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  
+  const handleSearch = (text: string) => {
+    setSearch(text);
+    const filtered = courses.filter(course =>
+      course.courseTitle.toLowerCase().includes(text.toLowerCase())
+    );
+    setFilteredCourses(filtered);
+  };
+
+ 
+
+
+  const fetchActiveCourses = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/course/active'); // Active courses endpoint
+      setCourses(response.data);
+      setFilteredCourses(response.data);
+    } catch (error) {
+      console.error('Failed to fetch active courses:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActiveCourses();
+  }, []);
+
+
+
+  const renderCourse = ({ item }: { item: Course }) => (
+    console.log(`Rendering course: ${item.course_id}`),
+  <TouchableOpacity 
+    style={styles.courseCard}
+    onPress={() => router.push(`/student/coursedetails?courseId=${item.course_id}`)}
+  >
+    <Text style={styles.courseName}>{item.courseTitle}</Text>
+    <Text style={styles.courseDescription}>{item.courseDescription}</Text>
+    <Text style={styles.courseDescription}>Instructor: {item.instructorName}</Text>
+    <View style={styles.courseStats}>
+      <View style={styles.statItem}>
+        <Ionicons name="time-outline" size={16} color={COLORS.gray} />
+        <Text style={styles.statText}>{item.duration} weeks</Text>
+      </View>
+      <View style={styles.statItem}>
+        <Ionicons name="book-outline" size={16} color={COLORS.gray} />
+        <Text style={styles.statText}>{item.credit} credits</Text>
+      </View>
+    </View>
+  </TouchableOpacity>
+);
 
   return (
     <View style={styles.container}>
-      <Header title="Available Courses" />
+      <Header title="Courses" />
       <View style={styles.content}>
         <View style={styles.searchContainer}>
-          <Search size={20} color={COLORS.gray} style={styles.searchIcon} />
+          <Ionicons name="search" size={20} style={styles.searchIcon} color={COLORS.gray} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search courses..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            placeholderTextColor={COLORS.gray}
+            value={search}
+            onChangeText={handleSearch}
           />
         </View>
 
-        {loading ? (
-          <ActivityIndicator size="large" color={COLORS.primary} style={styles.loader} />
-        ) : filteredCourses.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyStateText}>No courses found matching your search.</Text>
-          </View>
-        ) : (
-          <FlatList
-            data={filteredCourses}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <CourseCard
-                course={{ ...item, enrolled: enrolledCourses.includes(item.id) }}
-                showEnrollButton={!enrolledCourses.includes(item.id)}
-                onEnroll={() => handleEnroll(item.id)}
-                enrolling={enrollingCourseId === item.id}
-              />
-            )}
-            contentContainerStyle={styles.coursesList}
-            showsVerticalScrollIndicator={false}
-          />
-        )}
+        <FlatList
+          data={search ? filteredCourses : courses}
+          renderItem={renderCourse}
+          keyExtractor={(item) => item.course_id}
+          refreshing={loading}
+          onRefresh={fetchCourses}
+          contentContainerStyle={styles.coursesList}
+          ListEmptyComponent={<Text style={{ textAlign: 'center', marginTop: 20 }}>No courses found.</Text>}
+        />
       </View>
+
+      
     </View>
   );
-}
+};
+
+export default Courses;
 
 const styles = StyleSheet.create({
   container: {
@@ -138,37 +153,130 @@ const styles = StyleSheet.create({
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.white,
-    borderRadius: 8,
-    paddingHorizontal: SPACING.md,
     marginBottom: SPACING.md,
   },
   searchIcon: {
-    marginRight: SPACING.sm,
+    position: 'absolute',
+    left: SPACING.md,
+    zIndex: 1,
   },
   searchInput: {
     flex: 1,
+    backgroundColor: COLORS.white,
+    borderRadius: 8,
+    paddingVertical: SPACING.sm,
+    paddingLeft: SPACING.xl,
+    paddingRight: SPACING.md,
     fontFamily: FONT.regular,
     fontSize: SIZES.md,
     color: COLORS.darkGray,
-    paddingVertical: SPACING.md,
+    ...SHADOWS.small,
+  },
+  addButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 8,
+    padding: SPACING.sm,
+    marginLeft: SPACING.sm,
+    ...SHADOWS.small,
   },
   coursesList: {
     paddingBottom: 100,
   },
-  loader: {
-    marginTop: SPACING.xl,
+  courseCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    ...SHADOWS.small,
   },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: SPACING.lg,
+  courseName: {
+    fontFamily: FONT.bold,
+    fontSize: SIZES.lg,
+    marginBottom: SPACING.xs,
   },
-  emptyStateText: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.md,
+  courseDescription: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
     color: COLORS.gray,
+    marginBottom: SPACING.sm,
+  },
+  courseStats: {
+    flexDirection: 'row',
+    justifyContent: 'flex-start',
+    gap: SPACING.md,
+  },
+  statItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: SPACING.md,
+  },
+  statText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.sm,
+    marginLeft: 4,
+    color: COLORS.gray,
+  },
+  cardButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginTop: SPACING.md,
+  },
+  editButton: {
+    marginHorizontal: SPACING.md,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: '#00000099',
+    justifyContent: 'center',
+    padding: SPACING.lg,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    padding: SPACING.lg,
+  },
+  modalTitle: {
+    fontFamily: FONT.bold,
+    fontSize: SIZES.lg,
+    marginBottom: SPACING.md,
     textAlign: 'center',
+  },
+  input: {
+    height: 48,
+    borderColor: COLORS.gray,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    fontFamily: FONT.regular,
+    fontSize: SIZES.md,
+    color: COLORS.darkGray,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: SPACING.md,
+  },
+  modalButton: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: SPACING.sm,
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: COLORS.gray,
+    marginRight: SPACING.sm,
+  },
+  cancelButtonText: {
+    color: COLORS.gray,
+    fontFamily: FONT.medium,
+  },
+  addButtonModal: {
+    backgroundColor: COLORS.primary,
+    marginLeft: SPACING.sm,
+  },
+  addButtonText: {
+    color: COLORS.white,
+    fontFamily: FONT.medium,
   },
 });
