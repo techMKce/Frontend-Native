@@ -55,6 +55,8 @@ type Assignment = {
   file?: string;
   link?: string;
   courseId?: string;
+  fileName?: string;
+  fileNo?: string;
 };
 
 // Elegant Popup Component
@@ -293,6 +295,8 @@ export default function Displaycourses() {
   const [searchQuery, setSearchQuery] = useState('');
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
   const [assignmentForm, setAssignmentForm] = useState({
     title: '',
     description: '',
@@ -349,11 +353,18 @@ export default function Displaycourses() {
       return Alert.alert('Error', 'Due date is required');
     }
 
+    if (!course || !course.courseTitle || !course.instructorName) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return Alert.alert('Error', 'Course details are incomplete');
+    }
+
     try {
       setLoading(true);
       const formData = new FormData();
 
       formData.append('courseId', id);
+      formData.append('courseName', course.courseTitle);
+      formData.append('courseFaculty', course.instructorName);
       formData.append('title', assignmentForm.title);
       formData.append('description', assignmentForm.description || '');
       formData.append('dueDate', format(assignmentForm.dueDate, "yyyy-MM-dd'T'HH:mm:ss"));
@@ -368,7 +379,7 @@ export default function Displaycourses() {
         } as any);
       }
 
-      const response = await api.post('/assignments', formData, {
+      await api.post('/assignments', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -379,13 +390,7 @@ export default function Displaycourses() {
       ToastAndroid.show('Assignment created!', ToastAndroid.SHORT);
 
       setShowAssignmentPopup(false);
-      setAssignmentForm({
-        title: '',
-        description: '',
-        dueDate: null,
-        link: ''
-      });
-      setFiles([]);
+      resetAssignmentForm();
     } catch (error: any) {
       console.error('Assignment error:', error.response?.data || error.message);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -396,6 +401,156 @@ export default function Displaycourses() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const updateAssignment = async () => {
+    if (!assignmentForm.title.trim()) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return Alert.alert('Error', 'Title is required');
+    }
+
+    if (!assignmentForm.dueDate) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return Alert.alert('Error', 'Due date is required');
+    }
+
+    if (!course || !course.courseTitle || !course.instructorName) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return Alert.alert('Error', 'Course details are incomplete');
+    }
+
+    if (!selectedAssignmentId) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      return Alert.alert('Error', 'Assignment ID is missing');
+    }
+
+    try {
+      setLoading(true);
+      const formData = new FormData();
+
+      formData.append('assignmentId', selectedAssignmentId);
+      formData.append('courseId', id);
+      formData.append('courseName', course.courseTitle);
+      formData.append('courseFaculty', course.instructorName);
+      formData.append('title', assignmentForm.title);
+      formData.append('description', assignmentForm.description || '');
+      formData.append('dueDate', format(assignmentForm.dueDate, "yyyy-MM-dd'T'HH:mm:ss"));
+      formData.append('resourceLink', assignmentForm.link || '');
+
+      if (files.length > 0 && files[0].uri) {
+        const file = files[0];
+        formData.append('file', {
+          uri: file.uri,
+          name: file.name || 'assignment_file.pdf',
+          type: file.type || 'application/pdf',
+        } as any);
+      }
+
+      await api.put('/assignments', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      await fetchAssignments();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      ToastAndroid.show('Assignment updated!', ToastAndroid.SHORT);
+
+      setShowAssignmentPopup(false);
+      resetAssignmentForm();
+    } catch (error: any) {
+      console.error('Update assignment error:', error.response?.data || error.message);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Error',
+        error.response?.data?.message || 'Failed to update assignment. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteAssignment = async (assignmentId: string) => {
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this assignment?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await api.delete(`/assignments?assignmentId=${assignmentId}`);
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              ToastAndroid.show('Assignment deleted!', ToastAndroid.SHORT);
+              await fetchAssignments();
+            } catch (error: any) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+              Alert.alert(
+                'Error',
+                error.response?.data?.message || 'Failed to delete assignment. Please try again.'
+              );
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleEditAssignment = async (assignmentId: string) => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/assignments/id?assignmentId=${assignmentId}`);
+      const assignment = response.data.assignment;
+
+      setAssignmentForm({
+        title: assignment.title || '',
+        description: assignment.description || '',
+        dueDate: assignment.dueDate ? new Date(assignment.dueDate) : null,
+        link: assignment.resourceLink || '',
+      });
+
+      if (assignment.fileName) {
+        setFiles([{
+          uri: '', // URI will be empty as we don't have the actual file
+          name: assignment.fileName,
+          type: 'application/octet-stream',
+        }]);
+      } else {
+        setFiles([]);
+      }
+
+      setSelectedAssignmentId(assignmentId);
+      setIsEditing(true);
+      setShowAssignmentPopup(true);
+    } catch (error: any) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      Alert.alert(
+        'Error',
+        error.response?.data?.message || 'Failed to fetch assignment details.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetAssignmentForm = () => {
+    setAssignmentForm({
+      title: '',
+      description: '',
+      dueDate: null,
+      link: '',
+    });
+    setFiles([]);
+    setIsEditing(false);
+    setSelectedAssignmentId(null);
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
@@ -415,11 +570,12 @@ export default function Displaycourses() {
     if (activeIndex === 0) {
       setShowSectionPopup(true);
     } else {
+      setIsEditing(false);
+      setSelectedAssignmentId(null);
       setShowAssignmentPopup(true);
     }
   };
 
-  // Add Section Handler
   const addSection = async () => {
     if (!sectionTitle.trim()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
@@ -449,7 +605,6 @@ export default function Displaycourses() {
     }
   };
 
-  // UI
   return (
     <View style={styles.container}>
       <Header title="Course Details" />
@@ -493,7 +648,6 @@ export default function Displaycourses() {
               </View>
             </View>
 
-            {/* Enhanced Tab Bar */}
             <View style={styles.tabBar}>
               {menu.map((item, idx) => (
                 <TouchableOpacity
@@ -513,7 +667,6 @@ export default function Displaycourses() {
               ))}
             </View>
 
-            {/* Sections Tab */}
             {activeIndex === 0 && (
               <View style={styles.tabContent}>
                 {sections.length === 0 ? (
@@ -562,7 +715,6 @@ export default function Displaycourses() {
               </View>
             )}
 
-            {/* Assignments Tab */}
             {activeIndex === 1 && (
               <View style={styles.tabContent}>
                 <View style={styles.searchContainer}>
@@ -615,10 +767,16 @@ export default function Displaycourses() {
                               )}
                             </View>
                             <View style={styles.assignmentActions}>
-                              <TouchableOpacity style={styles.actionButton}>
+                              <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={() => handleEditAssignment(item.assignmentId)}
+                              >
                                 <MaterialIcons name="edit" size={20} color="#007BFF" />
                               </TouchableOpacity>
-                              <TouchableOpacity style={styles.actionButton}>
+                              <TouchableOpacity
+                                style={styles.actionButton}
+                                onPress={() => deleteAssignment(item.assignmentId)}
+                              >
                                 <MaterialIcons name="delete" size={20} color="#dc3545" />
                               </TouchableOpacity>
                             </View>
@@ -634,7 +792,6 @@ export default function Displaycourses() {
         </>
       )}
 
-      {/* Enhanced Floating Action Button */}
       <TouchableOpacity
         style={styles.fab}
         onPress={handleFabPress}
@@ -643,7 +800,6 @@ export default function Displaycourses() {
         <FontAwesome name="plus" size={24} color="#fff" />
       </TouchableOpacity>
 
-      {/* Add Section Popup */}
       <ElegantPopup
         visible={showSectionPopup}
         onClose={() => setShowSectionPopup(false)}
@@ -684,11 +840,13 @@ export default function Displaycourses() {
         </ScrollView>
       </ElegantPopup>
 
-      {/* Add Assignment Popup */}
       <ElegantPopup
         visible={showAssignmentPopup}
-        onClose={() => setShowAssignmentPopup(false)}
-        title="Create New Assignment"
+        onClose={() => {
+          setShowAssignmentPopup(false);
+          resetAssignmentForm();
+        }}
+        title={isEditing ? "Edit Assignment" : "Create New Assignment"}
         animationType="slide"
       >
         <ScrollView showsVerticalScrollIndicator={false}>
@@ -714,7 +872,6 @@ export default function Displaycourses() {
             icon="link-outline"
           />
 
-          {/* Due Date Picker */}
           <TouchableOpacity
             style={[styles.customInput, { flexDirection: 'row', alignItems: 'center', marginBottom: 20 }]}
             onPress={() => setShowDatePicker(true)}
@@ -730,7 +887,7 @@ export default function Displaycourses() {
           {showDatePicker && (
             <DateTimePicker
               value={assignmentForm.dueDate || new Date()}
-              mode="datetime"
+              mode="date"
               display={Platform.OS === 'ios' ? 'spinner' : 'default'}
               onChange={handleDateChange}
             />
@@ -744,16 +901,19 @@ export default function Displaycourses() {
           <View style={styles.popupActions}>
             <CustomButton
               title="Cancel"
-              onPress={() => setShowAssignmentPopup(false)}
+              onPress={() => {
+                setShowAssignmentPopup(false);
+                resetAssignmentForm();
+              }}
               variant="secondary"
               icon="close-outline"
             />
             <CustomButton
-              title="Create Assignment"
-              onPress={addAssignment}
+              title={isEditing ? "Save Changes" : "Create Assignment"}
+              onPress={isEditing ? updateAssignment : addAssignment}
               variant="primary"
               disabled={loading}
-              icon="add-outline"
+              icon={isEditing ? "save-outline" : "add-outline"}
             />
           </View>
         </ScrollView>
@@ -1051,8 +1211,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
   },
-
-  // Popup Styles
   popupOverlay: {
     position: 'absolute',
     top: 0,
@@ -1121,8 +1279,6 @@ const styles = StyleSheet.create({
     padding: 24,
     maxHeight: screenHeight * 0.6,
   },
-
-  // Input Styles
   inputContainer: {
     marginBottom: 20,
     position: 'relative',
@@ -1159,8 +1315,6 @@ const styles = StyleSheet.create({
   fileUploaderContainer: {
     marginBottom: 20,
   },
-
-  // Button Styles
   customButton: {
     flexDirection: 'row',
     alignItems: 'center',
