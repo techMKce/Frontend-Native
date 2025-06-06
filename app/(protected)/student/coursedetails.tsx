@@ -68,14 +68,12 @@ export default function Displaycourses() {
     if (id) {
       fetchCourseDetails();
     }
-    // eslint-disable-next-line
   }, [id]);
 
   useEffect(() => {
     if (id && activeIndex === 1) {
       fetchAssignments();
     }
-    // eslint-disable-next-line
   }, [activeIndex, id]);
 
   const fetchCourseDetails = async () => {
@@ -95,7 +93,7 @@ export default function Displaycourses() {
   const fetchAssignments = async () => {
     setAssignmentsLoading(true);
     try {
-      const response = await api.get(`/assignments/course/${id}`);
+      const response = await api.get(`/assignments/course?courseId=${id}`);
       setAssignments(response.data.assignments);
       console.log('Assignments API response:', response.data);
     } catch (error: any) {

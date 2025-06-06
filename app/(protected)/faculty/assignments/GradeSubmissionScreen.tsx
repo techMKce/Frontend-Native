@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { Button, Card, IconButton } from 'react-native-paper';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
@@ -24,7 +25,7 @@ interface Submission {
   submittedAt: string;
   status: string;
   fileNo: string;
-  fileName:string;
+  fileName: string;
 }
 
 const GradeSubmissionScreen = () => {
@@ -34,7 +35,11 @@ const GradeSubmissionScreen = () => {
   const [selectedGrade, setSelectedGrade] = useState('');
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(true);
+  const [rejecting, setRejecting] = useState(false); // New state for reject button loading
   const navigation = useNavigation();
+
+  // Animation state for the Status field
+  const statusFadeAnim = useRef(new Animated.Value(1)).current;
 
   const grades = [
     { label: 'O', description: 'Outstanding' },
@@ -74,6 +79,64 @@ const GradeSubmissionScreen = () => {
     fetchSubmission();
   }, [submissionId]);
 
+  const animateStatusChange = () => {
+    Animated.timing(statusFadeAnim, {
+      toValue: 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start(() => {
+      Animated.timing(statusFadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }).start();
+    });
+  };
+
+  const handleRejectSubmission = async () => {
+    if (!submissionId || !submission?.assignmentId) {
+      Alert.alert('Error', 'Submission or assignment ID is missing.');
+      return;
+    }
+
+    Alert.alert(
+      'Confirm Rejection',
+      'Are you sure you want to reject this submission? The student will need to resubmit, and you will not be able to assign a grade.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            setRejecting(true); // Show loading indicator
+            try {
+              await api.post('/submissions/status', {
+                submissionId,
+                assignmentId: submission.assignmentId,
+                status: 'Rejected',
+              });
+
+              setSubmission((prev) => {
+                if (prev) {
+                  animateStatusChange();
+                  return { ...prev, status: 'Rejected' };
+                }
+                return null;
+              });
+              // Removed the success alert to streamline the process
+            } catch (error: any) {
+              Alert.alert('Error', error.response?.data?.message || 'Failed to reject submission.');
+            } finally {
+              setRejecting(false); // Hide loading indicator
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const isRejected = submission?.status === 'Rejected';
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -92,132 +155,163 @@ const GradeSubmissionScreen = () => {
   }
 
   return (
-    <><Header title="Grades" />
-    <ScrollView contentContainerStyle={styles.container}>
-      <TouchableOpacity onPress={() => navigation.goBack()}>
-        <Text style={styles.backLink}>{'< Back to All Submissions'}</Text>
-      </TouchableOpacity>
-      <Text style={styles.title}>Grade Submission</Text>
+    <>
+      <Header title="Grades" />
+      <ScrollView contentContainerStyle={styles.container}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backLink}>{'< Back to All Submissions'}</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>Grade Submission</Text>
 
-      <Card style={styles.fullCard}>
-        <Card.Title title="STUDENT INFORMATION" titleStyle={styles.cardTitle} />
-        <Card.Content>
-          <Text style={styles.label}>Name</Text>
-          <Text style={styles.value}>{submission.studentName}</Text>
+        <Card style={styles.fullCard}>
+          <Card.Title title="STUDENT INFORMATION" titleStyle={styles.cardTitle} />
+          <Card.Content>
+            <Text style={styles.label}>Name</Text>
+            <Text style={styles.value}>{submission.studentName}</Text>
 
-          <Text style={styles.label}>Roll Number</Text>
-          <Text style={styles.value}>{submission.studentRollNumber}</Text>
+            <Text style={styles.label}>Roll Number</Text>
+            <Text style={styles.value}>{submission.studentRollNumber}</Text>
 
-          <Text style={styles.label}>Submitted On</Text>
-          <View style={styles.dateRow}>
-            <MaterialIcons name="calendar-today" size={16} />
-            <Text style={styles.value}>
-              {' '}
-              {new Date(submission.submittedAt).toLocaleString()}
-            </Text>
+            <Text style={styles.label}>Submitted On</Text>
+            <View style={styles.dateRow}>
+              <MaterialIcons name="calendar-today" size={16} />
+              <Text style={styles.value}>
+                {' '}
+                {new Date(submission.submittedAt).toLocaleString()}
+              </Text>
+            </View>
+
+            <Text style={styles.label}>Status</Text>
+            <Animated.View style={{ opacity: statusFadeAnim }}>
+              <Text style={[styles.value, isRejected && { color: '#ef4444' }]}>
+                {submission.status}
+              </Text>
+            </Animated.View>
+
+            <Text style={styles.label}>Submitted Document</Text>
+            <View style={styles.docRow}>
+              <FontAwesome5 name="file-pdf" size={16} color="white" style={styles.pdfIcon} />
+              <Text style={styles.docText}>submission_{submission.fileName}.pdf</Text>
+              <IconButton
+                icon="download"
+                size={18}
+                onPress={async () => {
+                  const url = `${api.defaults.baseURL}/submissions/download?submissionId=${submissionId}`;
+                  try {
+                    await WebBrowser.openBrowserAsync(url);
+                  } catch (error: any) {
+                    Alert.alert('Error', 'Failed to open file: ' + error.message);
+                  }
+                }}
+              />
+            </View>
+          </Card.Content>
+        </Card>
+
+        <Card style={styles.fullCard}>
+          <View style={styles.gradingHeader}>
+            <View style={styles.headerRow}>
+              <Text style={styles.cardTitle}>GRADING</Text>
+              {!isRejected && (
+                <TouchableOpacity
+                  style={styles.rejectButton}
+                  onPress={handleRejectSubmission}
+                  disabled={rejecting}
+                >
+                  {rejecting ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text style={styles.rejectButtonText}>Reject</Text>
+                  )}
+                </TouchableOpacity>
+              )}
+            </View>
           </View>
+          <Card.Content>
+            <Text style={styles.label}>Select Grade</Text>
+            <View style={styles.gradeGrid}>
+              {grades.map((grade) => (
+                <TouchableOpacity
+                  key={grade.label}
+                  style={[
+                    styles.gradeButton,
+                    selectedGrade === grade.label && styles.selectedGrade,
+                    isRejected && styles.disabledGradeButton,
+                  ]}
+                  onPress={() => !isRejected && setSelectedGrade(grade.label)}
+                  disabled={isRejected}
+                >
+                  <Text
+                    style={[
+                      styles.gradeText,
+                      selectedGrade === grade.label && { color: '#fff' },
+                      isRejected && styles.disabledText,
+                    ]}
+                  >
+                    {grade.label}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.gradeDescription,
+                      selectedGrade === grade.label && { color: '#fff' },
+                      isRejected && styles.disabledText,
+                    ]}
+                  >
+                    {grade.description}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-          <Text style={styles.label}>Status</Text>
-          <Text style={styles.value}>{submission.status}</Text>
+            <Text style={styles.label}>Feedback</Text>
+            <TextInput
+              style={[styles.feedbackInput, isRejected && styles.disabledInput]}
+              placeholder="Provide feedback on the student's work..."
+              multiline
+              numberOfLines={4}
+              maxLength={500}
+              value={feedback}
+              onChangeText={setFeedback}
+              editable={!isRejected}
+            />
+            <Text style={styles.charCount}>{feedback.length}/500 characters</Text>
 
-          <Text style={styles.label}>Submitted Document</Text>
-          <View style={styles.docRow}>
-            <FontAwesome5 name="file-pdf" size={16} color="white" style={styles.pdfIcon} />
-            <Text style={styles.docText}>submission_{submission.fileName}.pdf</Text>
-            <IconButton
-              icon="download"
-              size={18}
+            <Button
+              mode="contained"
+              icon="check"
+              style={[styles.submitButton, isRejected && styles.disabledButton]}
               onPress={async () => {
-                const url = `${api.defaults.baseURL}/submissions/download?submissionId=${submissionId}`;
+                if (isRejected) {
+                  Alert.alert('Error', 'Cannot submit grade for a rejected submission.');
+                  return;
+                }
+
+                if (!selectedGrade) {
+                  Alert.alert('Validation Error', 'Please select a grade before submitting.');
+                  return;
+                }
+
                 try {
-                  await WebBrowser.openBrowserAsync(url);
+                  const response = await api.post('/gradings', {
+                    studentRollNumber: submission.studentRollNumber,
+                    assignmentId: submission.assignmentId,
+                    grade: selectedGrade,
+                    feedback: feedback,
+                  });
+
+                  Alert.alert('Success', 'Grade submitted successfully!');
+                  navigation.goBack();
                 } catch (error: any) {
-                  Alert.alert('Error', 'Failed to open file: ' + error.message);
+                  Alert.alert('Error', error.response?.data?.message || 'Failed to submit grade.');
                 }
               }}
-            />
-          </View>
-        </Card.Content>
-      </Card>
-
-      <Card style={styles.fullCard}>
-        <View style={styles.gradingHeader}>
-          <Text style={styles.cardTitle}>GRADING</Text>
-        </View>
-        <Card.Content>
-          <Text style={styles.label}>Select Grade</Text>
-          <View style={styles.gradeGrid}>
-            {grades.map((grade) => (
-              <TouchableOpacity
-                key={grade.label}
-                style={[
-                  styles.gradeButton,
-                  selectedGrade === grade.label && styles.selectedGrade,
-                ]}
-                onPress={() => setSelectedGrade(grade.label)}
-              >
-                <Text
-                  style={[
-                    styles.gradeText,
-                    selectedGrade === grade.label && { color: '#fff' },
-                  ]}
-                >
-                  {grade.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.gradeDescription,
-                    selectedGrade === grade.label && { color: '#fff' },
-                  ]}
-                >
-                  {grade.description}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          <Text style={styles.label}>Feedback</Text>
-          <TextInput
-            style={styles.feedbackInput}
-            placeholder="Provide feedback on the student's work..."
-            multiline
-            numberOfLines={4}
-            maxLength={500}
-            value={feedback}
-            onChangeText={setFeedback}
-          />
-          <Text style={styles.charCount}>{feedback.length}/500 characters</Text>
-
-          <Button
-            mode="contained"
-            icon="check"
-            style={styles.submitButton}
-            onPress={async () => {
-              if (!selectedGrade) {
-                Alert.alert('Validation Error', 'Please select a grade before submitting.');
-                return;
-              }
-
-              try {
-                const response = await api.post('/gradings', {
-                  studentRollNumber: submission.studentRollNumber,
-                  assignmentId: submission.assignmentId,
-                  grade: selectedGrade,
-                  feedback: feedback,
-                });
-
-                Alert.alert('Success', 'Grade submitted successfully!');
-                navigation.goBack();
-              } catch (error: any) {
-                Alert.alert('Error', error.response?.data?.message || 'Failed to submit grade.');
-              }
-            }}
-          >
-            Submit Grade
-          </Button>
-        </Card.Content>
-      </Card>
-    </ScrollView>
+              disabled={isRejected}
+            >
+              Submit Grade
+            </Button>
+          </Card.Content>
+        </Card>
+      </ScrollView>
     </>
   );
 };
@@ -298,6 +392,10 @@ const styles = StyleSheet.create({
   selectedGrade: {
     backgroundColor: '#2563eb',
   },
+  disabledGradeButton: {
+    backgroundColor: '#e5e7eb',
+    opacity: 0.5,
+  },
   gradeText: {
     fontWeight: 'bold',
     color: '#111827',
@@ -305,6 +403,9 @@ const styles = StyleSheet.create({
   gradeDescription: {
     fontSize: 12,
     color: '#374151',
+  },
+  disabledText: {
+    color: '#6b7280',
   },
   feedbackInput: {
     borderWidth: 1,
@@ -314,6 +415,10 @@ const styles = StyleSheet.create({
     height: 100,
     textAlignVertical: 'top',
     backgroundColor: '#fff',
+  },
+  disabledInput: {
+    backgroundColor: '#e5e7eb',
+    opacity: 0.5,
   },
   charCount: {
     textAlign: 'right',
@@ -325,9 +430,32 @@ const styles = StyleSheet.create({
     marginTop: 16,
     backgroundColor: '#1e3a8a',
   },
+  disabledButton: {
+    backgroundColor: '#6b7280',
+    opacity: 0.5,
+  },
   gradingHeader: {
     paddingHorizontal: 16,
     paddingTop: 16,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  rejectButton: {
+    backgroundColor: '#ef4444',
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    minWidth: 70, 
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rejectButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
   },
   loadingContainer: {
     flex: 1,

@@ -750,22 +750,7 @@ export default function Displaycourses() {
                           onPress={() => router.push(`/faculty/assignments/grade?id=${item.assignmentId}`)}
                         >
                           <View style={styles.assignmentHeader}>
-                            <View style={styles.assignmentInfo}>
-                              <Text style={styles.assignmentTitle}>{item.title}</Text>
-                              {item.description && (
-                                <Text style={styles.assignmentDescription}>
-                                  {item.description}
-                                </Text>
-                              )}
-                              {item.dueDate && (
-                                <View style={styles.dueDateContainer}>
-                                  <Ionicons name="calendar-outline" size={14} color="#dc3545" />
-                                  <Text style={styles.assignmentDueDate}>
-                                    Due: {format(new Date(item.dueDate), 'MMM dd, yyyy HH:mm')}
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
+                            <Text style={styles.assignmentTitle}>{item.title}</Text>
                             <View style={styles.assignmentActions}>
                               <TouchableOpacity
                                 style={styles.actionButton}
@@ -781,6 +766,19 @@ export default function Displaycourses() {
                               </TouchableOpacity>
                             </View>
                           </View>
+                          {item.description && (
+                            <Text style={styles.assignmentDescription}>
+                              {item.description}
+                            </Text>
+                          )}
+                          {item.dueDate && (
+                            <View style={styles.dueDateContainer}>
+                              <Ionicons name="calendar-outline" size={14} color="#dc3545" />
+                              <Text style={styles.assignmentDueDate}>
+                                Due: {format(new Date(item.dueDate), 'MMM dd, yyyy HH:mm')}
+                              </Text>
+                            </View>
+                          )}
                         </TouchableOpacity>
                       ))
                     }
@@ -1154,23 +1152,21 @@ const styles = StyleSheet.create({
   assignmentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  assignmentInfo: {
-    flex: 1,
-    marginRight: 16,
+    alignItems: 'center',
+    marginBottom: 8,
   },
   assignmentTitle: {
     fontSize: 18,
     fontWeight: '600',
     color: '#1a1a1a',
-    marginBottom: 8,
+    flex: 1,
+    marginRight: 16,
   },
   assignmentDescription: {
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   dueDateContainer: {
     flexDirection: 'row',
