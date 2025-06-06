@@ -554,11 +554,13 @@ export default function Displaycourses() {
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(false);
-    if (selectedDate) {
-      setAssignmentForm({ ...assignmentForm, dueDate: selectedDate });
-    }
-  };
+  setShowDatePicker(false);
+  if (selectedDate) {
+    
+    selectedDate.setHours(23, 59, 0, 0); 
+    setAssignmentForm({ ...assignmentForm, dueDate: selectedDate });
+  }
+};
 
   const handleTabPress = (index: number) => {
     Haptics.selectionAsync();

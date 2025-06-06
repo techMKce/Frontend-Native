@@ -8,6 +8,7 @@ import { Calendar, Upload, X, Download, Eye } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import api from '@/service/api';
+import { useAuth } from '@/hooks/useAuth';
 
 interface Assignment {
   assignmentId: string;
@@ -29,10 +30,19 @@ interface Submission {
   fileId: string;
   studentDepartment: string;
   studentSemester: string;
+  studentEmail?: string;
   submittedAt: string;
 }
 
+const formatDate = (date: Date): string => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}.${month}.${year}`;
+};
+
 export default function SubmitAssignmentScreen() {
+  const {profile} = useAuth();
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
@@ -42,10 +52,11 @@ export default function SubmitAssignmentScreen() {
 
   const { assignmentId: rawAssignmentId } = useLocalSearchParams();
   const assignmentId = Array.isArray(rawAssignmentId) ? rawAssignmentId[0] : rawAssignmentId || '';
-  const studentName = 'John Doe';
-  const studentRollNumber = 'STU123';
-  const studentDepartment = 'CSE';
-  const studentSemester = '3';
+  const studentName = profile?.profile.name;
+  const studentRollNumber = profile?.profile.id;
+  const studentEmail = profile?.profile.email;
+  const studentDepartment = profile?.profile.department;
+  const studentSemester = profile?.profile.semester;
 
   useEffect(() => {
     const fetchAssignmentAndSubmission = async () => {
@@ -58,11 +69,9 @@ export default function SubmitAssignmentScreen() {
       try {
         setLoading(true);
 
-        // Fetch assignment details using axios
         const assignmentResponse = await api.get(`/assignments/id?assignmentId=${assignmentId}`);
         setAssignment(assignmentResponse.data.assignment);
 
-        // Fetch submission details using axios
         const submissionResponse = await api.get(`/submissions?assignmentId=${assignmentId}`);
         const studentSubmission = submissionResponse.data.submissions.find(
           (sub: Submission) => sub.studentRollNumber === studentRollNumber
@@ -83,14 +92,19 @@ export default function SubmitAssignmentScreen() {
   }, [assignmentId]);
 
   const handlePick = async () => {
+    if (isPastDue && !isSubmitted) {
+      Alert.alert('Due Date Passed', 'You cannot upload a file after the due date has passed.');
+      return;
+    }
+
     try {
-      const res = await DocumentPicker.getDocumentAsync({ type: '/' });
+      const res = await DocumentPicker.getDocumentAsync({ type: '*/*' }); // Adjusted type for broader compatibility
       if (!res.canceled) {
         setSelectedFile(res.assets[0]);
       }
     } catch (e) {
-      console.error(e);
-      setError('Failed to pick file');
+      console.error('File picker error:', e);
+      setError('Failed to pick file. Please try again.');
     }
   };
 
@@ -100,10 +114,11 @@ export default function SubmitAssignmentScreen() {
     try {
       const formData = new FormData();
       formData.append('assignmentId', assignmentId);
-      formData.append('studentName', studentName);
-      formData.append('studentRollNumber', studentRollNumber);
-      formData.append('studentDepartment', studentDepartment);
-      formData.append('studentSemester', studentSemester);
+      formData.append('studentName', studentName ?? '');
+      formData.append('studentEmail', studentEmail ?? '');
+      formData.append('studentRollNumber', studentRollNumber ?? '');
+      formData.append('studentDepartment', studentDepartment ?? '');
+      formData.append('studentSemester', studentSemester ?? '');
       formData.append('file', {
         uri: selectedFile.uri,
         name: selectedFile.name,
@@ -120,15 +135,14 @@ export default function SubmitAssignmentScreen() {
       setSubmission({
         id: response.data.submissionId,
         assignmentId,
-        studentName,
-        studentRollNumber,
+        studentName: studentName ?? '',
+        studentRollNumber: studentRollNumber ?? '',
         fileId: response.data.submissionId,
-        studentDepartment: response.data.studentDepartment,
-        studentSemester: response.data.studentSemester,
+        studentDepartment: response.data.studentDepartment ?? '',
+        studentSemester: response.data.studentSemester ?? '',
         submittedAt: new Date().toISOString(),
       });
       setSelectedFile(null);
-      // router.replace('/assignments');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'An error occurred while submitting the assignment');
     }
@@ -141,8 +155,9 @@ export default function SubmitAssignmentScreen() {
       const formData = new FormData();
       formData.append('submissionId', submission.id);
       formData.append('assignmentId', assignmentId);
-      formData.append('studentName', studentName);
-      formData.append('studentRollNumber', studentRollNumber);
+      formData.append('studentName', studentName ?? '');
+      formData.append('studentRollNumber', studentRollNumber ?? '');
+      formData.append('studentEmail', studentEmail ?? '');
       formData.append('file', {
         uri: selectedFile.uri,
         name: selectedFile.name,
@@ -162,7 +177,6 @@ export default function SubmitAssignmentScreen() {
         submittedAt: new Date().toISOString(),
       });
       setSelectedFile(null);
-      // router.replace('/assignments');
     } catch (err: any) {
       setError(err.response?.data?.message || err.message || 'An error occurred while editing the submission');
     }
@@ -293,7 +307,7 @@ export default function SubmitAssignmentScreen() {
   if (error || !assignment) {
     return (
       <View style={styles.container}>
-        <Header title="Submit Assignment" />
+        <Header title="Submit Assignment"  />
         <View style={styles.content}>
           <Text style={styles.errorText}>{error || 'Assignment not found'}</Text>
         </View>
@@ -301,6 +315,29 @@ export default function SubmitAssignmentScreen() {
     );
   }
 
+  // Debug: Log the raw due date and parsed date
+  const dueDate = new Date(assignment.dueDate);
+
+  // Validate the due date
+  const isDueDateValid = !isNaN(dueDate.getTime());
+  if (!isDueDateValid) {
+    console.error('Invalid due date:', assignment.dueDate);
+    setError('Invalid due date format. Please contact support.');
+    return (
+      <View style={styles.container}>
+        <Header title="Submit Assignment"  />
+        <View style={styles.content}>
+          <Text style={styles.errorText}>Invalid due date format. Please contact support.</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Compare timestamps to avoid time zone issues
+  const dueDateTimestamp = dueDate.getTime();
+  const currentTimestamp = new Date().getTime();
+  const isPastDue = dueDateTimestamp < currentTimestamp;
+ 
   return (
     <View style={styles.container}>
       <Header title="Submit Assignment" />
@@ -312,9 +349,9 @@ export default function SubmitAssignmentScreen() {
           <Text style={styles.courseName}>{assignment.courseId}</Text>
 
           <View style={styles.dueDateContainer}>
-            <Calendar size={16} color={COLORS.gray} />
-            <Text style={styles.dueDate}>
-              Due: {new Date(assignment.dueDate).toLocaleDateString()}
+            <Calendar size={16} color={isPastDue ? COLORS.error : COLORS.gray} />
+            <Text style={[styles.dueDate, { color: isPastDue ? COLORS.error : COLORS.gray }]}>
+              Due: {formatDate(new Date(assignment.dueDate))}
             </Text>
           </View>
 
@@ -340,6 +377,12 @@ export default function SubmitAssignmentScreen() {
         <View style={styles.submissionCard}>
           <Text style={styles.sectionTitle}>Submit Assignment</Text>
 
+          {isPastDue && !isSubmitted && (
+            <Text style={styles.pastDueMessage}>
+              The due date has passed. Submissions are no longer accepted.
+            </Text>
+          )}
+
           {isSubmitted && submission ? (
             <>
               <View style={styles.submittedFile}>
@@ -358,13 +401,18 @@ export default function SubmitAssignmentScreen() {
               <TouchableOpacity
                 style={styles.unsubmitButton}
                 onPress={handleUnsubmit}
+                disabled={isPastDue}
               >
                 <Text style={styles.unsubmitButtonText}>Unsubmit</Text>
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <TouchableOpacity style={styles.uploadButton} onPress={handlePick}>
+              <TouchableOpacity
+                style={[styles.uploadButton, isPastDue && { opacity: 0.6 }]}
+                onPress={handlePick}
+                disabled={isPastDue}
+              >
                 <Upload size={24} color={COLORS.primary} />
                 <Text style={styles.uploadText}>Upload your file</Text>
               </TouchableOpacity>
@@ -380,6 +428,7 @@ export default function SubmitAssignmentScreen() {
                   <TouchableOpacity
                     style={[styles.iconButton, styles.deleteButton]}
                     onPress={() => setSelectedFile(null)}
+                    disabled={isPastDue}
                   >
                     <X size={20} color={COLORS.error} />
                   </TouchableOpacity>
@@ -389,10 +438,10 @@ export default function SubmitAssignmentScreen() {
               <TouchableOpacity
                 style={[
                   styles.submitButton,
-                  (!selectedFile || isSubmitted) && { opacity: 0.6 },
+                  (!selectedFile || isSubmitted || isPastDue) && { opacity: 0.6 },
                 ]}
                 onPress={submission ? handleEditSubmission : handleSubmit}
-                disabled={!selectedFile || isSubmitted}
+                disabled={!selectedFile || isSubmitted || isPastDue}
               >
                 <Text style={styles.submitButtonText}>
                   {submission ? 'Update Submission' : 'Submit Assignment'}
@@ -408,7 +457,6 @@ export default function SubmitAssignmentScreen() {
   );
 }
 
-// Styles remain exactly the same as in your original code
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: COLORS.background },
   content: { flex: 1, padding: SPACING.md },
@@ -439,7 +487,6 @@ const styles = StyleSheet.create({
   dueDate: {
     fontFamily: FONT.medium,
     fontSize: SIZES.sm,
-    color: COLORS.gray,
     marginLeft: SPACING.xs,
   },
   description: {
@@ -483,6 +530,13 @@ const styles = StyleSheet.create({
     fontSize: SIZES.lg,
     color: COLORS.darkGray,
     marginBottom: SPACING.md,
+  },
+  pastDueMessage: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.md,
+    color: COLORS.error,
+    marginBottom: SPACING.md,
+    textAlign: 'center',
   },
   uploadButton: {
     flexDirection: 'row',
@@ -582,5 +636,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: SPACING.lg,
   },
-  
 });

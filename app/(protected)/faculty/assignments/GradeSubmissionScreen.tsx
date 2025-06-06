@@ -35,10 +35,9 @@ const GradeSubmissionScreen = () => {
   const [selectedGrade, setSelectedGrade] = useState('');
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(true);
-  const [rejecting, setRejecting] = useState(false); // New state for reject button loading
+  const [rejecting, setRejecting] = useState(false);
   const navigation = useNavigation();
 
-  // Animation state for the Status field
   const statusFadeAnim = useRef(new Animated.Value(1)).current;
 
   const grades = [
@@ -62,7 +61,7 @@ const GradeSubmissionScreen = () => {
 
       try {
         const response = await api.get(`/submissions/id?submissionId=${submissionId}`);
-        console.log('API response:', response.data);
+        console.log('Fetch submission API response:', response.data);
 
         if (response.data.submission) {
           setSubmission(response.data.submission);
@@ -70,7 +69,8 @@ const GradeSubmissionScreen = () => {
           Alert.alert('Error', response.data.message || 'No submission data found.');
         }
       } catch (error: any) {
-        Alert.alert('Error', 'Failed to load submission: ' + error.message);
+        console.error('Fetch submission error:', error);
+        Alert.alert('Error', 'Failed to load submission: ' + (error.message || 'Unknown error'));
       } finally {
         setLoading(false);
       }
@@ -108,14 +108,19 @@ const GradeSubmissionScreen = () => {
           text: 'Reject',
           style: 'destructive',
           onPress: async () => {
-            setRejecting(true); // Show loading indicator
+            setRejecting(true);
             try {
-              await api.post('/submissions/status', {
+              const response = await api.post('/submissions/status', {
                 submissionId,
                 assignmentId: submission.assignmentId,
                 status: 'Rejected',
               });
 
+              console.log('Reject submission API response:', response);
+              console.log('Response status:', response.status);
+              console.log('Response data:', response.data);
+
+              // Update UI optimistically
               setSubmission((prev) => {
                 if (prev) {
                   animateStatusChange();
@@ -123,11 +128,38 @@ const GradeSubmissionScreen = () => {
                 }
                 return null;
               });
-              // Removed the success alert to streamline the process
             } catch (error: any) {
-              Alert.alert('Error', error.response?.data?.message || 'Failed to reject submission.');
+              console.error('Reject submission error:', error);
+              console.log('Error response:', error.response);
+              console.log('Error status:', error.response?.status);
+              console.log('Error data:', error.response?.data);
+
+              // Handle cases where the backend might return a 204 or other non-error status
+              if (error.response?.status === 204 || error.response?.status === 200) {
+                setSubmission((prev) => {
+                  if (prev) {
+                    animateStatusChange();
+                    return { ...prev, status: 'Rejected' };
+                  }
+                  return null;
+                });
+              } else {
+                Alert.alert(
+                  'Error',
+                  error.response?.data?.message || 'Failed to reject submission. Please try again.'
+                );
+                // Re-fetch submission to ensure UI consistency
+                try {
+                  const response = await api.get(`/submissions/id?submissionId=${submissionId}`);
+                  if (response.data.submission) {
+                    setSubmission(response.data.submission);
+                  }
+                } catch (fetchError: any) {
+                  console.error('Re-fetch submission error:', fetchError);
+                }
+              }
             } finally {
-              setRejecting(false); // Hide loading indicator
+              setRejecting(false);
             }
           },
         },
@@ -448,7 +480,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     borderRadius: 6,
-    minWidth: 70, 
+    minWidth: 70,
     alignItems: 'center',
     justifyContent: 'center',
   },
