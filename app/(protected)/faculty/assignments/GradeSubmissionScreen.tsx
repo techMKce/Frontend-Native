@@ -15,6 +15,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
 import api from '@/service/api';
+import Header from '@/components/shared/Header';
 
 interface Submission {
   assignmentId: string;
@@ -23,6 +24,7 @@ interface Submission {
   submittedAt: string;
   status: string;
   fileNo: string;
+  fileName:string;
 }
 
 const GradeSubmissionScreen = () => {
@@ -90,6 +92,7 @@ const GradeSubmissionScreen = () => {
   }
 
   return (
+    <><Header title="Grades" />
     <ScrollView contentContainerStyle={styles.container}>
       <TouchableOpacity onPress={() => navigation.goBack()}>
         <Text style={styles.backLink}>{'< Back to All Submissions'}</Text>
@@ -120,7 +123,7 @@ const GradeSubmissionScreen = () => {
           <Text style={styles.label}>Submitted Document</Text>
           <View style={styles.docRow}>
             <FontAwesome5 name="file-pdf" size={16} color="white" style={styles.pdfIcon} />
-            <Text style={styles.docText}>submission_{submission.fileNo}.pdf</Text>
+            <Text style={styles.docText}>submission_{submission.fileName}.pdf</Text>
             <IconButton
               icon="download"
               size={18}
@@ -215,6 +218,7 @@ const GradeSubmissionScreen = () => {
         </Card.Content>
       </Card>
     </ScrollView>
+    </>
   );
 };
 

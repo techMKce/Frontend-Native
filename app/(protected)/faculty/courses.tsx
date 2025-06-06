@@ -73,7 +73,7 @@ const Courses = () => {
   const fetchCourses = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/course/details');
+      const response = await api.get('/course/active');
       setCourses(response.data);
       setFilteredCourses(response.data);
     } catch (error) {

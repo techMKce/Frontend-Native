@@ -4,6 +4,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { useRouter } from 'expo-router'; // Add this import
 import Header from '@/components/shared/Header';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -63,24 +64,24 @@ type AuthProfile = {
 
 const AttendanceScreen = () => {
   const { profile } = useAuth();
+  const router = useRouter(); // Add this line
   const authProfile = profile as AuthProfile | undefined;
   const user = authProfile?.profile;
-  
+
   const [filters, setFilters] = useState({
-    batch: '', 
-    course: '', 
-    department: '', 
-    semester: '', 
-    session: 'forenoon', 
+    batch: '',
+    course: '',
+    department: '',
+    semester: '',
+    session: 'forenoon',
     date: new Date()
   });
-  
+
   const [showPicker, setShowPicker] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [students, setStudents] = useState<Student[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
   const [attendance, setAttendance] = useState<Record<string, boolean>>({});
-  const [viewMode, setViewMode] = useState(false);
   const [showStats, setShowStats] = useState(false);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [loading, setLoading] = useState(false);
@@ -91,6 +92,7 @@ const AttendanceScreen = () => {
     if (user?.id) {
       fetchFacultyCourses();
     }
+    // eslint-disable-next-line
   }, [user?.id]);
 
   const fetchFacultyCourses = async () => {
@@ -100,22 +102,23 @@ const AttendanceScreen = () => {
       const assignResponse = await api.get(
         `/faculty-student-assigning/admin/faculty/${user?.id}`
       );
-      
+
       if (assignResponse.data?.length > 0) {
         const courseIds = assignResponse.data
           .map((item: { courseId: string }) => item.courseId)
           .filter(Boolean)
           .join('&id=');
-        
+
         if (!courseIds) {
           setError('No valid course IDs found');
+          setCourses([]);
           return;
         }
 
         const courseResponse = await api.get(
           `/course/detailsbyId?id=${courseIds}`
         );
-        
+
         if (courseResponse.data) {
           setCourses(courseResponse.data.map((course: any) => ({
             courseId: course.course_id?.toString() || '',
@@ -123,16 +126,20 @@ const AttendanceScreen = () => {
             courseDescription: course.courseDescription || '',
             instructorName: course.instructorName || '',
             dept: course.dept || '',
-            duration: course.duration || 0,
-            credit: course.credit || 0,
+            duration: Number(course.duration) || 0,
+            credit: Number(course.credit) || 0,
             imageUrl: course.imageUrl || ''
           })));
+        } else {
+          setCourses([]);
+          setError('No courses found');
         }
       } else {
         setCourses([]);
         setError('No courses assigned');
       }
     } catch (err) {
+      setCourses([]);
       setError('Failed to fetch courses. Please try again.');
       console.error('Error fetching courses:', err);
     } finally {
@@ -144,51 +151,91 @@ const AttendanceScreen = () => {
     try {
       setLoading(true);
       setError('');
+      console.log('Fetching students for course:', course.courseTitle);
 
       const assignResponse = await api.get(
         `/faculty-student-assigning/admin/faculty/${user?.id}`
       );
-      
+
+      console.log('Assignment response:', assignResponse.data);
+
       const courseAssignments = assignResponse.data?.find(
         (item: any) => item.courseId === course.courseId
       );
-      
+
+      console.log('Course assignments found:', courseAssignments);
+
       if (courseAssignments?.assignedRollNums?.length > 0) {
-        const studentDetails = await Promise.all(
-          courseAssignments.assignedRollNums.map(async (rollNum: string) => {
-            try {
-              const res = await api.get(`/profile/student/${rollNum}`);
-              return {
-                stdId: res.data?.stdId || '',
-                stdName: res.data?.stdName || '',
-                rollNum: res.data?.rollNum || '',
-                deptId: res.data?.deptId || '',
-                deptName: res.data?.deptName || '',
-                batch: res.data?.batch || '',
-                sem: res.data?.sem || 0,
+        console.log('Assigned roll numbers:', courseAssignments.assignedRollNums);
+        
+        const studentDetails = [];
+        
+        // Fetch students one by one with better error handling
+        for (const rollNum of courseAssignments.assignedRollNums) {
+          try {
+            console.log(`Fetching student details for roll number: ${rollNum}`);
+            const res = await api.get(`/profile/student/${rollNum}`);
+            console.log(`Student data for ${rollNum}:`, res.data);
+            
+            if (res.data) {
+              studentDetails.push({
+                stdId: res.data.stdId || res.data.id || rollNum, // Fallback to rollNum if no stdId
+                stdName: res.data.stdName || res.data.name || 'Unknown',
+                rollNum: res.data.rollNum || rollNum,
+                deptId: res.data.deptId || '',
+                deptName: res.data.deptName || 'Unknown Department',
+                batch: res.data.batch || '',
+                sem: res.data.sem || 0,
                 courseId: course.courseId,
                 courseName: course.courseTitle
-              };
-            } catch (err) {
-              console.error(`Error fetching student ${rollNum}:`, err);
-              return null;
+              });
             }
-          })
-        );
+          } catch (err) {
+            console.error(`Error fetching student ${rollNum}:`, err);
+            // Add a placeholder student even if API fails
+            studentDetails.push({
+              stdId: rollNum, // Use rollNum as fallback ID
+              stdName: `Student ${rollNum}`,
+              rollNum: rollNum,
+              deptId: '',
+              deptName: 'Unknown Department',
+              batch: '',
+              sem: 0,
+              courseId: course.courseId,
+              courseName: course.courseTitle
+            });
+          }
+        }
 
-        const validStudents = studentDetails.filter(student => student?.stdId) as Student[];
-        setStudents(validStudents);
-        setSelectedCourse(course);
-        setShowCourseSelection(false);
-        
-        // Initialize attendance state
-        const initialAttendance = validStudents.reduce((acc: Record<string, boolean>, student) => {
-          acc[student.stdId] = false;
-          return acc;
-        }, {});
-        setAttendance(initialAttendance);
+        console.log('Final student details:', studentDetails);
+
+        // Filter out invalid students but be more lenient
+        const validStudents = studentDetails.filter(student => 
+          student && (student.stdId || student.rollNum)
+        ) as Student[];
+
+        console.log('Valid students:', validStudents);
+
+        if (validStudents.length > 0) {
+          setStudents(validStudents);
+          setSelectedCourse(course);
+          setShowCourseSelection(false);
+
+          // Initialize attendance state
+          const initialAttendance = validStudents.reduce((acc: Record<string, boolean>, student) => {
+            const studentId = student.stdId || student.rollNum;
+            acc[studentId] = false;
+            return acc;
+          }, {});
+          
+          console.log('Initial attendance state:', initialAttendance);
+          setAttendance(initialAttendance);
+        } else {
+          setError('No valid students found for this course');
+        }
       } else {
         setError('No students assigned to this course');
+        console.log('No assigned roll numbers found');
       }
     } catch (err) {
       setError('Failed to fetch students. Please try again.');
@@ -199,6 +246,7 @@ const AttendanceScreen = () => {
   };
 
   const handleToggle = (id: string) => {
+    console.log('Toggling attendance for student ID:', id);
     setAttendance(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
@@ -207,27 +255,32 @@ const AttendanceScreen = () => {
     try {
       setLoading(true);
       const dateStr = filters.date.toISOString().split('T')[0];
-      
+
       const attendanceRecords = students
-        .filter(student => student.stdId)
-        .map(student => ({
-          stdId: student.stdId,
-          stdName: student.stdName,
-          facultyId: user.id,
-          facultyName: user.name || "Faculty",
-          status: attendance[student.stdId] ? 1 : 0,
-          session: filters.session,
-          courseId: selectedCourse.courseId,
-          courseName: selectedCourse.courseTitle,
-          batch: student.batch,
-          deptId: student.deptId,
-          deptName: student.deptName,
-          sem: student.sem,
-          dates: dateStr
-        }));
-      
+        .filter(student => student.stdId || student.rollNum)
+        .map(student => {
+          const studentId = student.stdId || student.rollNum;
+          return {
+            stdId: student.stdId || student.rollNum,
+            stdName: student.stdName,
+            facultyId: user.id,
+            facultyName: user.name || "Faculty",
+            status: attendance[studentId] ? 1 : 0,
+            session: filters.session,
+            courseId: selectedCourse.courseId,
+            courseName: selectedCourse.courseTitle,
+            batch: student.batch,
+            deptId: student.deptId,
+            deptName: student.deptName,
+            sem: student.sem,
+            dates: dateStr
+          };
+        });
+
+      console.log('Submitting attendance records:', attendanceRecords);
+
       if (attendanceRecords.length > 0) {
-        await api.post('/attupdate', attendanceRecords);
+        await api.post('/attendance/attendanceupdate', attendanceRecords);
         setShowStats(true);
       } else {
         setError('No valid attendance records to submit');
@@ -240,43 +293,9 @@ const AttendanceScreen = () => {
     }
   };
 
-  const toggleViewAttendance = async () => {
-    if (viewMode) {
-      setViewMode(false);
-      setShowStats(false);
-      setAttendance({});
-    } else {
-      try {
-        setLoading(true);
-        if (!selectedCourse || !user?.id) return;
-        
-        const dateStr = filters.date.toISOString().split('T')[0];
-        const response = await api.get(
-          `/getfaculty?id=${user.id}&date=${dateStr}`
-        );
-        
-        if (response.data) {
-          const filteredRecords = response.data.filter(
-            (record: AttendanceRecord) => 
-              record.courseId === selectedCourse.courseId && 
-              record.session === filters.session
-          );
-          
-          const attendanceData = filteredRecords.reduce((acc: Record<string, boolean>, record: AttendanceRecord) => {
-            acc[record.stdId] = record.status === 1;
-            return acc;
-          }, {});
-          
-          setAttendance(attendanceData);
-          setViewMode(true);
-        }
-      } catch (err) {
-        setError('Failed to fetch attendance records. Please try again.');
-        console.error('Error fetching attendance:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
+  // Replace the toggleViewAttendance function with navigateToHistory
+  const navigateToHistory = () => {
+    router.push('/(protected)/faculty/attendance-history');
   };
 
   const resetAttendance = () => {
@@ -284,15 +303,15 @@ const AttendanceScreen = () => {
     setStudents([]);
     setSelectedCourse(null);
     setShowStats(false);
-    setViewMode(false);
     setAttendance({});
-    setFilters({ 
-      batch: '', 
-      course: '', 
-      department: '', 
-      semester: '', 
-      session: 'forenoon', 
-      date: new Date() 
+    setError(''); // Clear any existing errors
+    setFilters({
+      batch: '',
+      course: '',
+      department: '',
+      semester: '',
+      session: 'forenoon',
+      date: new Date()
     });
   };
 
@@ -303,31 +322,37 @@ const AttendanceScreen = () => {
   if (loading) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity 
-          style={styles.retryButton}
-          onPress={() => {
-            setError('');
-            resetAttendance();
-          }}
-        >
-          <Text style={styles.retryText}>Retry</Text>
-        </TouchableOpacity>
+        <Header title="Take Attendance" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Header title={viewMode ? 'View Attendance' : 'Take Attendance'} />
+      <Header title="Take Attendance" />
+
+      {error && !showCourseSelection && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              setError('');
+              if (selectedCourse) {
+                fetchStudentsForCourse(selectedCourse);
+              } else {
+                resetAttendance();
+              }
+            }}
+          >
+            <Text style={styles.retryText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {showCourseSelection ? (
         <View style={{ flex: 1 }}>
@@ -335,10 +360,25 @@ const AttendanceScreen = () => {
             <TouchableOpacity onPress={() => setShowModal(true)}>
               <Filter size={24} color={COLORS.primary} />
             </TouchableOpacity>
-            <TouchableOpacity onPress={toggleViewAttendance}>
-              <Eye size={24} color={viewMode ? COLORS.primary : COLORS.gray} />
+            <TouchableOpacity onPress={navigateToHistory}>
+              <Eye size={24} color={COLORS.primary} />
             </TouchableOpacity>
           </View>
+
+          {error && (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+              <TouchableOpacity
+                style={styles.retryButton}
+                onPress={() => {
+                  setError('');
+                  fetchFacultyCourses();
+                }}
+              >
+                <Text style={styles.retryText}>Retry</Text>
+              </TouchableOpacity>
+            </View>
+          )}
 
           <FlatList
             data={courses}
@@ -369,52 +409,54 @@ const AttendanceScreen = () => {
             )}
             contentContainerStyle={styles.coursesList}
             ListEmptyComponent={
-              <Text style={styles.emptyText}>No courses assigned</Text>
+              !loading && !error ? (
+                <Text style={styles.emptyText}>No courses assigned</Text>
+              ) : null
             }
           />
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          {viewMode && (
+          {selectedCourse && (
             <TouchableOpacity style={styles.backButtonViewMode} onPress={resetAttendance}>
               <ArrowLeft size={20} color={COLORS.primary} />
-              <Text style={styles.backButtonViewModeText}>Back</Text>
+              <Text style={styles.backButtonViewModeText}>Back to Courses</Text>
             </TouchableOpacity>
+          )}
+
+          {selectedCourse && (
+            <View style={styles.selectedCourseInfo}>
+              <Text style={styles.selectedCourseTitle}>{selectedCourse.courseTitle}</Text>
+              <Text style={styles.selectedCourseDept}>{selectedCourse.dept}</Text>
+            </View>
           )}
 
           {students.length > 0 && !showStats && (
             <View style={styles.list}>
-              {students.map((student) => (
-                <TouchableOpacity
-                  key={student.stdId}
-                  style={styles.studentRow}
-                  disabled={viewMode}
-                  onPress={() => !viewMode && handleToggle(student.stdId)}
-                  activeOpacity={0.7}
-                >
-                  <View>
-                    <Text style={styles.studentName}>{student.stdName}</Text>
-                    <Text style={styles.studentRoll}>{student.rollNum}</Text>
-                    <Text style={styles.studentDept}>{student.deptName} - {student.batch}</Text>
-                  </View>
+              {students.map((student) => {
+                const studentId = student.stdId || student.rollNum;
+                return (
+                  <TouchableOpacity
+                    key={studentId}
+                    style={styles.studentRow}
+                    onPress={() => handleToggle(studentId)}
+                    activeOpacity={0.7}
+                  >
+                    <View>
+                      <Text style={styles.studentName}>{student.stdName}</Text>
+                      <Text style={styles.studentRoll}>{student.rollNum}</Text>
+                      <Text style={styles.studentDept}>{student.deptName} - {student.batch}</Text>
+                    </View>
 
-                  {viewMode ? (
-                    <Text style={{
-                      color: attendance[student.stdId] ? 'green' : 'red',
-                      fontWeight: '600'
-                    }}>
-                      {attendance[student.stdId] ? 'Present' : 'Absent'}
-                    </Text>
-                  ) : (
                     <Switch
-                      value={attendance[student.stdId] || false}
-                      onValueChange={() => handleToggle(student.stdId)}
-                      thumbColor={attendance[student.stdId] ? COLORS.primary : '#f4f3f4'}
+                      value={attendance[studentId] || false}
+                      onValueChange={() => handleToggle(studentId)}
+                      thumbColor={attendance[studentId] ? COLORS.primary : '#f4f3f4'}
                       trackColor={{ false: '#767577', true: COLORS.primaryLight }}
                     />
-                  )}
-                </TouchableOpacity>
-              ))}
+                  </TouchableOpacity>
+                );
+              })}
             </View>
           )}
 
@@ -454,7 +496,7 @@ const AttendanceScreen = () => {
             </Modal>
           )}
 
-          {!viewMode && students.length > 0 && !showStats && (
+          {students.length > 0 && !showStats && (
             <TouchableOpacity
               style={styles.submitBtn}
               onPress={submitAttendance}
@@ -511,10 +553,7 @@ const AttendanceScreen = () => {
                 <TouchableOpacity onPress={() => setShowModal(false)}>
                   <Text style={{ color: 'red', fontWeight: 'bold' }}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity onPress={() => {
-                  setShowModal(false);
-                  if (viewMode) toggleViewAttendance();
-                }}>
+                <TouchableOpacity onPress={() => setShowModal(false)}>
                   <Text style={{ color: 'green', fontWeight: 'bold' }}>Apply Filter</Text>
                 </TouchableOpacity>
               </View>
@@ -530,7 +569,21 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: SPACING.sm,
+    fontSize: SIZES.md,
+    color: COLORS.gray,
+    fontFamily: FONT.regular,
+  },
+  errorContainer: {
+    padding: SPACING.md,
+    alignItems: 'center',
   },
   content: {
     flexGrow: 1,
@@ -558,6 +611,24 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     marginLeft: SPACING.sm,
     fontFamily: FONT.medium,
+  },
+  selectedCourseInfo: {
+    backgroundColor: COLORS.white,
+    padding: SPACING.md,
+    borderRadius: 8,
+    marginBottom: SPACING.md,
+    ...SHADOWS.small,
+  },
+  selectedCourseTitle: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.lg,
+    color: COLORS.darkGray,
+  },
+  selectedCourseDept: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.md,
+    color: COLORS.gray,
+    marginTop: SPACING.xs,
   },
   courseCard: {
     backgroundColor: COLORS.white,

@@ -11,8 +11,10 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useNavigation } from '@react-navigation/native'; // Add this import
 import * as WebBrowser from 'expo-web-browser';
 import api from '@/service/api';
+import Header from '@/components/shared/Header';
 
 interface StudentSubmission {
   id: number;
@@ -30,101 +32,102 @@ interface Grading {
 
 export default function GradeSubmissionsScreen() {
   const { id: assignmentId } = useLocalSearchParams();
+  const [courseId, setCourseId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [submissions, setSubmissions] = useState<StudentSubmission[]>([]);
   const [loading, setLoading] = useState(true);
   const [dueDate, setDueDate] = useState<string>('');
   const [assignmentTitle, setAssignmentTitle] = useState<string>('');
   const [gradedCount, setGradedCount] = useState<number>(0);
+  const navigation = useNavigation(); // Add navigation hook
 
-  useEffect(() => {
+  const fetchData = async () => {
     if (!assignmentId) {
       console.error("Invalid assignment ID.");
       setLoading(false);
       return;
     }
 
-    const fetchData = async () => {
-      try {
-        const [assignmentRes, submissionRes, gradingRes] = await Promise.all([
-          api.get('/assignments/id', { params: { assignmentId } }),
-          api.get('/submissions', { params: { assignmentId } }),
-          api.get('/gradings', { params: { assignmentId } })
-        ]);
+    try {
+      setLoading(true); // Set loading to true during refresh
+      const [assignmentRes, submissionRes, gradingRes] = await Promise.all([
+        api.get('/assignments/id', { params: { assignmentId } }),
+        api.get('/submissions', { params: { assignmentId } }),
+        api.get('/gradings', { params: { assignmentId } }),
+      ]);
 
-        const assignment = assignmentRes.data.assignment;
-        if (assignment) {
-          setAssignmentTitle(assignment.title);
-          setDueDate(assignment.dueDate);
-        } else {
-          console.error("Failed to load assignment details.");
-        }
-
-        const submissionsData: StudentSubmission[] = Array.isArray(submissionRes.data.submissions)
-          ? submissionRes.data.submissions
-          : [];
-
-        const gradingsData: Grading[] = Array.isArray(gradingRes.data.gradings)
-          ? gradingRes.data.gradings
-          : [];
-
-        const mergedSubmissions = submissionsData.map((sub) => ({
-          ...sub,
-          grade: gradingsData.find(
-            (g: Grading) =>
-              g.studentRollNumber === sub.studentRollNumber &&
-              g.assignmentId.toString() === assignmentId
-          )?.grade,
-        }));
-
-        setSubmissions(mergedSubmissions);
-        setGradedCount(mergedSubmissions.filter((s) => s.grade).length);
-      } catch (err) {
-        console.error("Fetch error:", err);
-      } finally {
-        setLoading(false);
+      const assignment = assignmentRes.data.assignment;
+      if (assignment) {
+        setAssignmentTitle(assignment.title);
+        setDueDate(assignment.dueDate);
+        setCourseId(assignment.course_id);
+      } else {
+        console.error("Failed to load assignment details.");
       }
-    };
 
-    fetchData();
-  }, [assignmentId]);
+      const submissionsData: StudentSubmission[] = Array.isArray(submissionRes.data.submissions)
+        ? submissionRes.data.submissions
+        : [];
 
-  const handleDownloadReport = async () => {
-  try {
-    // First get the download URL from the API
-    const response = await api.get('/gradings/download-url', {
-      params: { assignmentId },
-      responseType: 'blob' // Important for file downloads
+      const gradingsData: Grading[] = Array.isArray(gradingRes.data.gradings)
+        ? gradingRes.data.gradings
+        : [];
+
+      const mergedSubmissions = submissionsData.map((sub) => ({
+        ...sub,
+        grade: gradingsData.find(
+          (g: Grading) =>
+            g.studentRollNumber === sub.studentRollNumber &&
+            g.assignmentId.toString() === assignmentId
+        )?.grade,
+      }));
+
+      setSubmissions(mergedSubmissions);
+      setGradedCount(mergedSubmissions.filter((s) => s.grade).length);
+    } catch (err) {
+      console.error("Fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchData(); // Initial fetch
+
+    // Add listener for when the screen is focused
+    const unsubscribe = navigation.addListener('focus', () => {
+      fetchData(); // Refetch data when screen is focused
     });
 
-    // If we get a direct download URL from the response
-    if (response.data.url) {
-      await WebBrowser.openBrowserAsync(response.data.url);
-    } 
-    // If we get the file data directly (as blob)
-    else if (response.data instanceof Blob) {
-      // Create a blob URL for the downloaded file
-      const fileURL = URL.createObjectURL(response.data);
-      
-      // Open the file in browser (for PDFs, images, etc.)
-      await WebBrowser.openBrowserAsync(fileURL);
-      
-      // Clean up the object URL after use
-       URL.revokeObjectURL(fileURL);
-    } else {
-      // Fallback to the direct API endpoint if no URL or blob is provided
-      const directDownloadUrl = `${api.defaults.baseURL}/gradings/download?assignmentId=${assignmentId}`;
-      await WebBrowser.openBrowserAsync(directDownloadUrl);
+    // Cleanup listener on unmount
+    return unsubscribe;
+  }, [assignmentId, navigation]);
+
+  const handleDownloadReport = async () => {
+    try {
+      const response = await api.get('/gradings/download-url', {
+        params: { assignmentId },
+        responseType: 'blob',
+      });
+
+      if (response.data.url) {
+        await WebBrowser.openBrowserAsync(response.data.url);
+      } else if (response.data instanceof Blob) {
+        const fileURL = URL.createObjectURL(response.data);
+        await WebBrowser.openBrowserAsync(fileURL);
+        URL.revokeObjectURL(fileURL);
+      } else {
+        const directDownloadUrl = `${api.defaults.baseURL}/gradings/download?assignmentId=${assignmentId}`;
+        await WebBrowser.openBrowserAsync(directDownloadUrl);
+      }
+    } catch (err: any) {
+      console.error('Download error:', err.message || 'Failed to download report');
+      Alert.alert(
+        'Download Failed',
+        'Could not download the report. Please try again later.'
+      );
     }
-  } catch (err: any) {
-    console.error('Download error:', err.message || 'Failed to download report');
-    // Optionally show an alert to the user
-    Alert.alert(
-      'Download Failed',
-      'Could not download the report. Please try again later.'
-    );
-  }
-};
+  };
 
   const filtered = submissions.filter(
     (s) =>
@@ -141,13 +144,17 @@ export default function GradeSubmissionsScreen() {
   }
 
   return (
+    //<View
+    <>
+    <Header title="Grades" />
     <View style={styles.container}>
-      <TouchableOpacity
-        onPress={() => router.push('/(faculty)/assignments')}
+     
+      {/* <TouchableOpacity
+        onPress={() => router.push(`/faculty/courses?courseId=${courseId}`)}
         style={styles.backLink}
       >
-        <Text style={styles.backLinkText}>← Back to Assignments</Text>
-      </TouchableOpacity>
+        <Text style={styles.backLinkText}>← Back to courses</Text>
+      </TouchableOpacity> */}
 
       <Text style={styles.header}>Grade Submissions</Text>
       <Text style={styles.subheader}>{assignmentTitle || '—'}</Text>
@@ -193,52 +200,41 @@ export default function GradeSubmissionsScreen() {
       />
       
       <View style={styles.tableHeader}>
-        <Text style={[styles.headerCell, { flex: 2 }]}>Student</Text>
-        <Text style={[styles.headerCell, { flex: 1 }]}>Roll Number</Text>
-        <Text style={[styles.headerCell, { flex: 1 }]}>Submitted On</Text>
+        <Text style={[styles.headerCell, { flex: 4 }]}>Student & Roll Number</Text>
         <Text style={[styles.headerCell, { flex: 1 }]}>Action</Text>
       </View>
 
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id.toString()}
-        renderItem={({ item }) => (
-          <View style={styles.studentCard}>
-            <View style={[styles.studentInfo, { flex: 2, flexDirection: 'row', alignItems: 'center' }]}>
-              <Icon name="person-circle-outline" size={36} color="#888" />
-              <Text style={[styles.studentName, { marginLeft: 10 }]}>{item.studentName}</Text>
-            </View>
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-              <Text style={styles.roll}>{item.studentRollNumber}</Text>
-            </View>
-            <View style={[styles.submittedOn, { flex: 1, justifyContent: 'center' }]}>
-              <Icon name="time-outline" size={14} color="#555" />
-              <Text style={styles.date}>
-                {new Date(item.submittedAt).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => {
-                router.push({
-                  pathname: item.grade
-                    ? '/faculty/assignments/ViewGradedSubmissionScreen'
-                    : '/faculty/assignments/GradeSubmissionScreen',
-                  params: { id: item.id.toString() },
-                });
-              }}
-            >
-              <Icon name="document-text-outline" size={16} color="#fff" />
-              <Text style={styles.actionText}>{item.grade ? 'Review' : 'Grade'}</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+      renderItem={({ item }) => (
+  <View style={styles.studentCard}>
+    <View style={[styles.studentInfo, { flex: 3, flexDirection: 'row', alignItems: 'center' }]}>
+      <Icon name="person-circle-outline" size={36} color="#888" />
+      <View style={{ marginLeft: 10 }}>
+        <Text style={styles.studentName}>{item.studentName}</Text>
+        <Text style={styles.roll}>{item.studentRollNumber}</Text>
+      </View>
+    </View>
+    <TouchableOpacity
+      style={styles.actionButton}
+      onPress={() => {
+        router.push({
+          pathname: item.grade
+            ? '/faculty/assignments/ViewGradedSubmissionScreen'
+            : '/faculty/assignments/GradeSubmissionScreen',
+          params: { id: item.id.toString() },
+        });
+      }}
+    >
+      <Icon name="document-text-outline" size={16} color="#fff" />
+      <Text style={styles.actionText}>{item.grade ? 'Review' : 'Grade'}</Text>
+    </TouchableOpacity>
+  </View>
+)}
       />
     </View>
+    </>
   );
 }
 
@@ -318,18 +314,9 @@ const styles = StyleSheet.create({
   roll: {
     fontSize: 12,
     color: '#777',
-    textAlign: 'center',
+    marginTop: 2,
   },
-  submittedOn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-  },
-  date: {
-    fontSize: 12,
-    color: '#555',
-    marginLeft: 4,
-  },
+ 
   actionButton: {
     backgroundColor: '#1D4E89',
     flexDirection: 'row',

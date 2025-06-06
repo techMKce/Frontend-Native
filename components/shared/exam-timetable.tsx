@@ -26,27 +26,31 @@ const ExamTimetableScreen = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchTimetable = async () => {
-      try {
-        setLoading(true);
-        const response = await api.get('/examsnative');
-        const transformedData: TimetableItem[] = response.data.map((item: any, index: number) => ({
-          id: `${index}`, // Create a unique ID using index
+  const fetchTimetable = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/attendance/examsnative');
+      console.log('Exam timetable API response:', response.data); // <-- Add this
+      // Adjust mapping based on actual keys
+      const transformedData: TimetableItem[] = response.data.map(
+        (item: any, index: number) => ({
+          id: `${index}`,
           date: item.date,
-          course: item.courseName, // Map 'courseName' to 'course'
+          course: item.courseName, // <-- use courseName from backend
           session: item.session,
-        }));
-        setTimetable(transformedData);
-      } catch (error) {
-        console.error('Failed to fetch exam timetable:', error);
-        Alert.alert('Error', 'Could not load timetable');
-      } finally {
-        setLoading(false);
-      }
-    };
+        })
+      );
+      setTimetable(transformedData);
+    } catch (error) {
+      console.error('Failed to fetch exam timetable:', error);
+      Alert.alert('Error', 'Could not load timetable');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchTimetable();
-  }, []);
+  fetchTimetable();
+}, []);
 
   const handleDownloadPDF = async () => {
     const tableRows = timetable
