@@ -126,8 +126,12 @@ export default function StudentDashboard() {
   const loadEnrolledCourses = async () => {
     if (!user?.id) return;
     try {
+     
       const enrolledResponse = await api.get(`/course-enrollment/by-student/${user.id}`);
       const enrolledCourseIds: string[] = enrolledResponse.data || [];
+    
+      const countResponse = await api.get(`/course-enrollment/count-by-student/${user.id}`);
+      const enrolledCoursesCount = countResponse.data;
 
       const enrichedEnrollments: Enrollment[] = [];
       const recentCoursesData: Course[] = [];
@@ -153,7 +157,10 @@ export default function StudentDashboard() {
 
       setEnrolledCoursesList(enrichedEnrollments);
       setRecentCourses(recentCoursesData);
-      setStats(prev => ({ ...prev, enrolledCourses: enrichedEnrollments.length }));
+      setStats(prev => ({ 
+        ...prev, 
+        enrolledCourses: enrolledCoursesCount 
+      }));
 
     } catch (error) {
       console.error("Error loading enrolled courses:", error);

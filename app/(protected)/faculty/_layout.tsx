@@ -27,12 +27,12 @@ export default function FacultyTabsLayout() {
       icon: BookOpen,
       label: 'Courses',
     },
-    // {
-    //   name: 'students',
-    //   href: '/faculty/students',
-    //   icon: Users,
-    //   label: 'Students',
-    // },
+    {
+      name: 'students',
+      href: '/faculty/students',
+      icon: Users,
+      label: 'Students',
+    },
     {
       name: 'attendance',
       href: '/faculty/attendance',
@@ -57,7 +57,7 @@ export default function FacultyTabsLayout() {
       >
         <Tabs.Screen name="index" />
         <Tabs.Screen name="courses" />
-        
+        <Tabs.Screen name="students" />
         <Tabs.Screen name="attendance" />
         <Tabs.Screen name="profile" />
       </Tabs>

@@ -92,6 +92,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
 
   const deleteContent = async (content_id: number) => {
   try {
+    console.log(content_id);
     await api.delete('/course/section/content/delete', {
       data: content_id.toString() // Send as string
     });
@@ -205,14 +206,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
     }
   };
 
-  const filterContentByType = (
-    contents: Content[],
-    isVideo: boolean
-  ): Content[] => {
-    return contents.filter((item) =>
-      isVideo ? item.contentType === 'Video' : item.contentType !== 'Video'
-    );
-  };
+
 
   return (
     <View style={styles.sectionContainer}>
@@ -250,7 +244,7 @@ const SectionCard: React.FC<SectionCardProps> = ({
           {/* Delete Button */}
           <TouchableOpacity
             onPress={() => {
-              deleteSection(section_id);
+              deleteSection(section_id.toString());
             }}
             disabled={loading}
             style={{
