@@ -151,31 +151,25 @@ const AttendanceScreen = () => {
     try {
       setLoading(true);
       setError('');
-      console.log('Fetching students for course:', course.courseTitle);
 
       const assignResponse = await api.get(
         `/faculty-student-assigning/admin/faculty/${user?.id}`
       );
 
-      console.log('Assignment response:', assignResponse.data);
 
       const courseAssignments = assignResponse.data?.find(
         (item: any) => item.courseId === course.courseId
       );
 
-      console.log('Course assignments found:', courseAssignments);
 
       if (courseAssignments?.assignedRollNums?.length > 0) {
-        console.log('Assigned roll numbers:', courseAssignments.assignedRollNums);
         
         const studentDetails = [];
         
         // Fetch students one by one with better error handling
         for (const rollNum of courseAssignments.assignedRollNums) {
           try {
-            console.log(`Fetching student details for roll number: ${rollNum}`);
             const res = await api.get(`/profile/student/${rollNum}`);
-            console.log(`Student data for ${rollNum}:`, res.data);
             
             if (res.data) {
               studentDetails.push({
@@ -191,7 +185,6 @@ const AttendanceScreen = () => {
               });
             }
           } catch (err) {
-            console.error(`Error fetching student ${rollNum}:`, err);
             // Add a placeholder student even if API fails
             studentDetails.push({
               stdId: rollNum, // Use rollNum as fallback ID
@@ -207,14 +200,12 @@ const AttendanceScreen = () => {
           }
         }
 
-        console.log('Final student details:', studentDetails);
 
         // Filter out invalid students but be more lenient
         const validStudents = studentDetails.filter(student => 
           student && (student.stdId || student.rollNum)
         ) as Student[];
 
-        console.log('Valid students:', validStudents);
 
         if (validStudents.length > 0) {
           setStudents(validStudents);
@@ -228,14 +219,12 @@ const AttendanceScreen = () => {
             return acc;
           }, {});
           
-          console.log('Initial attendance state:', initialAttendance);
           setAttendance(initialAttendance);
         } else {
           setError('No valid students found for this course');
         }
       } else {
         setError('No students assigned to this course');
-        console.log('No assigned roll numbers found');
       }
     } catch (err) {
       setError('Failed to fetch students. Please try again.');
@@ -246,7 +235,6 @@ const AttendanceScreen = () => {
   };
 
   const handleToggle = (id: string) => {
-    console.log('Toggling attendance for student ID:', id);
     setAttendance(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
@@ -277,7 +265,6 @@ const AttendanceScreen = () => {
           };
         });
 
-      console.log('Submitting attendance records:', attendanceRecords);
 
       if (attendanceRecords.length > 0) {
         await api.post('/attendance/attendanceupdate', attendanceRecords);

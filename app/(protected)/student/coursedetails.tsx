@@ -19,7 +19,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import StudentProgressDisplay from './StudentprogressDisplay';
-import StudentSectionCard from './courses/student_section_card'; // We'll create this file
+import StudentSectionCard from './courses/student_section_card';
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -106,7 +106,6 @@ export default function Displaycourses() {
       setAssignmentsLoading(false);
     }
   };
-
   const filteredAssignments = assignments.filter(assignment =>
     assignment.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -161,6 +160,227 @@ export default function Displaycourses() {
     }
   };
 
+  // Get data for the active tab
+  const getDataForActiveTab = () => {
+    if (activeIndex === 0) {
+      return isEnrolled ? sections : [];
+    } else if (activeIndex === 1) {
+      return filteredAssignments;
+    }
+    return [];
+  };
+  // Render item based on active tab
+  const renderItem = ({ item, index }) => {
+    if (activeIndex === 0) {
+      return (
+        <StudentSectionCard
+          key={item.section_id}
+          section_id={parseInt(item.section_id)}
+          course_id={parseInt(id)}
+          title={item.sectionTitle}
+          desc={item.sectionDesc}
+          onrefresh={refreshSections}
+          viewOnly={true}
+        />
+      );
+    } else if (activeIndex === 1) {
+      return (
+        <TouchableOpacity
+          style={styles.assignmentCard}
+          onPress={() =>
+            router.push({
+              pathname: '/student/assignments/submit',
+              params: { assignmentId: item.assignmentId },
+            })
+          }
+          activeOpacity={0.8}
+        >
+          <View style={styles.assignmentHeader}>
+            <View style={styles.assignmentInfo}>
+              <Text style={styles.assignmentTitle}>{item.title}</Text>
+              {item.description && (
+                <Text style={styles.assignmentDescription}>{item.description}</Text>
+              )}
+              {item.dueDate && (
+                <View style={styles.dueDateContainer}>
+                  <Ionicons name="calendar-outline" size={14} color="#dc3545" />
+                  <Text style={styles.assignmentDueDate}>
+                    Due: {format(new Date(item.dueDate), 'MMM dd, yyyy HH:mm')}
+                  </Text>
+                </View>
+              )}
+            </View>
+            <View style={styles.actionButton}>
+              <FontAwesome name="arrow-right" size={20} color="#007BFF" />
+            </View>
+          </View>
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
+
+  // Header component for the FlatList
+  const ListHeader = () => {
+    if (!course) return null;
+    
+    return (
+      <>
+        {/* Course Card */}
+        <View style={styles.courseCard}>
+          <Image style={styles.image} source={{ uri: course.imageUrl }} />
+          <View style={styles.courseInfo}>
+            <Text style={styles.courseTitle}>{course.courseTitle}</Text>
+            <Text style={styles.instructor}>
+              👨‍🏫 {course.instructorName} • {course.dept}
+            </Text>
+            <View style={styles.courseMeta}>
+              <View style={styles.metaItem}>
+                <Ionicons name="time-outline" size={16} color="#007BFF" />
+                <Text style={styles.metaText}>{course.duration} Weeks</Text>
+              </View>
+              <View style={styles.metaItem}>
+                <Ionicons name="school-outline" size={16} color="#007BFF" />
+                <Text style={styles.metaText}>{course.credit} Credits</Text>
+              </View>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: course.isActive ? '#28a745' : '#dc3545' }
+                ]}
+              >
+                <Text style={styles.statusText}>
+                  {course.isActive ? 'Active' : 'Inactive'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.description}>{course.courseDescription}</Text>
+          </View>
+        </View>
+
+        {/* Enroll Button - Only show if not enrolled */}
+        {!isEnrolled ? (
+          <TouchableOpacity
+            style={[styles.enrollButton, enrollmentLoading && styles.enrollButtonLoading]}
+            onPress={handleEnroll}
+            disabled={enrollmentLoading}
+          >
+            {enrollmentLoading ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <Text style={styles.enrollButtonText}>Enroll</Text>
+            )}
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.enrolledBadge}>
+            <FontAwesome name="check-circle" size={18} color="#4CAF50" />
+            <Text style={styles.enrolledText}>Enrolled</Text>
+          </View>
+        )}
+
+        {/* Progress Bar - Only show if enrolled */}
+        {isEnrolled && (
+          <View style={styles.progressBarContainer}>
+            <StudentProgressDisplay courseId={id} studentId={studentId || ''} />
+          </View>
+        )}
+
+        {/* Tab Bar */}
+        <View style={styles.tabBar}>
+          {menu.map((item, idx) => (
+            <TouchableOpacity
+              key={item}
+              style={[styles.tab, activeIndex === idx && styles.activeTab]}
+              onPress={() => setActiveIndex(idx)}
+              activeOpacity={0.7}
+            >
+              <Text
+                style={[
+                  styles.tabText,
+                  activeIndex === idx && styles.activeTabText,
+                ]}
+              >
+                {item}
+              </Text>
+              {activeIndex === idx && <View style={styles.tabIndicator} />}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Search bar for assignments tab */}
+        {activeIndex === 1 && (
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search assignments..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        )}
+
+        {/* Empty state handling - Course Locked */}
+        {activeIndex === 0 && !isEnrolled && (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="lock-closed-outline" size={60} color="#007BFF" />
+            </View>
+            <Text style={styles.emptyStateTitle}>Course Locked</Text>
+            <Text style={styles.emptyStateText}>
+              Enroll in this course to access its content
+            </Text>
+          </View>
+        )}
+
+        {/* Empty state handling - No Sections */}
+        {activeIndex === 0 && isEnrolled && sections.length === 0 && (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons name="library-outline" size={60} color="#007BFF" />
+            </View>
+            <Text style={styles.emptyStateTitle}>No Sections Yet</Text>
+            <Text style={styles.emptyStateText}>
+              No sections available for this course yet.
+            </Text>
+          </View>
+        )}
+
+        {/* Empty state handling - No Assignments or Loading */}
+        {activeIndex === 1 && (
+          <>
+            {assignmentsLoading ? (
+              <View style={styles.emptyState}>
+                <ActivityIndicator size="large" color="#007BFF" />
+                <Text style={styles.loadingText}>Loading assignments...</Text>
+              </View>
+            ) : filteredAssignments.length === 0 && (
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconContainer}>
+                  <Ionicons name="document-text-outline" size={60} color="#007BFF" />
+                </View>
+                <Text style={styles.emptyStateTitle}>No Assignments Yet</Text>
+                <Text style={styles.emptyStateText}>
+                  No assignments available for this course yet.
+                </Text>
+              </View>
+            )}
+          </>
+        )}
+      </>
+    );
+  };
+
+  // Key extractor for the FlatList
+  const keyExtractor = (item) => {
+    if (activeIndex === 0) {
+      return `section-${item.section_id}`;
+    } else {
+      return `assignment-${item.assignmentId}`;
+    }
+  };
+
   return (
     <View style={styles.container}>
       <Header title="Course Details" />
@@ -173,227 +393,17 @@ export default function Displaycourses() {
       )}
 
       {!loading && course && (
-        <ScrollView showsVerticalScrollIndicator={false}>
-          {/* Course Card */}
-          <View style={styles.courseCard}>
-            <Image style={styles.image} source={{ uri: course.imageUrl }} />
-            <View style={styles.courseInfo}>
-              <Text style={styles.courseTitle}>{course.courseTitle}</Text>
-              <Text style={styles.instructor}>
-                👨‍🏫 {course.instructorName} • {course.dept}
-              </Text>
-              <View style={styles.courseMeta}>
-                <View style={styles.metaItem}>
-                  <Ionicons name="time-outline" size={16} color="#007BFF" />
-                  <Text style={styles.metaText}>{course.duration} Weeks</Text>
-                </View>
-                <View style={styles.metaItem}>
-                  <Ionicons name="school-outline" size={16} color="#007BFF" />
-                  <Text style={styles.metaText}>{course.credit} Credits</Text>
-                </View>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor: course.isActive ? '#28a745' : '#dc3545',
-                    },
-                  ]}
-                >
-                  <Text style={styles.statusText}>
-                    {course.isActive ? 'Active' : 'Inactive'}
-                  </Text>
-                </View>
-              </View>
-              <Text style={styles.description}>{course.courseDescription}</Text>
-            </View>
-          </View>
-
-          {/* Enroll Button - Only show if not enrolled */}
-          {!isEnrolled ? (
-            <TouchableOpacity
-              style={[styles.enrollButton, enrollmentLoading && styles.enrollButtonLoading]}
-              onPress={handleEnroll}
-              disabled={enrollmentLoading}
-            >
-              {enrollmentLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.enrollButtonText}>Enroll</Text>
-              )}
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.enrolledBadge}>
-              <FontAwesome name="check-circle" size={18} color="#4CAF50" />
-              <Text style={styles.enrolledText}>Enrolled</Text>
-            </View>
-          )}
-
-          {/* Progress Bar - Only show if enrolled */}
-          {isEnrolled && (
-            <View style={styles.progressBarContainer}>
-              <StudentProgressDisplay courseId={id} studentId={studentId || ''} />
-            </View>
-          )}
-
-          {/* Tab Bar */}
-          <View style={styles.tabBar}>
-            {menu.map((item, idx) => (
-              <TouchableOpacity
-                key={item}
-                style={[styles.tab, activeIndex === idx && styles.activeTab]}
-                onPress={() => setActiveIndex(idx)}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.tabText,
-                    activeIndex === idx && styles.activeTabText,
-                  ]}
-                >
-                  {item}
-                </Text>
-                {activeIndex === idx && <View style={styles.tabIndicator} />}
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Sections Tab - Only show content if enrolled */}
-          {activeIndex === 0 && (
-            <View style={styles.tabContent}>
-              {!isEnrolled ? (
-                <View style={styles.emptyState}>
-                  <View style={styles.emptyIconContainer}>
-                    <Ionicons name="lock-closed-outline" size={60} color="#007BFF" />
-                  </View>
-                  <Text style={styles.emptyStateTitle}>Course Locked</Text>
-                  <Text style={styles.emptyStateText}>
-                    Enroll in this course to access its content
-                  </Text>
-                </View>
-              ) : sections.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <View className="emptyIconContainer">
-                    <Ionicons name="library-outline" size={60} color="#007BFF" />
-                  </View>
-                  <Text style={styles.emptyStateTitle}>No Sections Yet</Text>
-                  <Text style={styles.emptyStateText}>
-                    No sections available for this course yet.
-                  </Text>
-                </View>
-              ) : (
-                <View style={styles.sectionList}>
-                  {sections.map((section) => (
-                    <StudentSectionCard
-                      key={section.section_id}
-                      section_id={parseInt(section.section_id)}
-                      course_id={parseInt(id)}
-                      title={section.sectionTitle}
-                      desc={section.sectionDesc}
-                      onrefresh={refreshSections}
-                      viewOnly={true}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Assignments Tab */}
-          {activeIndex === 1 && (
-            <View style={styles.tabContent}>
-              <View style={styles.searchContainer}>
-                <Ionicons
-                  name="search"
-                  size={20}
-                  color="#999"
-                  style={styles.searchIcon}
-                />
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search assignments..."
-                  placeholderTextColor="#999"
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                />
-              </View>
-
-              {assignmentsLoading ? (
-                <View style={styles.loadingContainer}>
-                  <ActivityIndicator size="large" color="#007BFF" />
-                  <Text style={styles.loadingText}>Loading assignments...</Text>
-                </View>
-              ) : filteredAssignments.length === 0 ? (
-                <View style={styles.emptyState}>
-                  <View style={styles.emptyIconContainer}>
-                    <Ionicons
-                      name="document-text-outline"
-                      size={60}
-                      color="#007BFF"
-                    />
-                  </View>
-                  <Text style={styles.emptyStateTitle}>No Assignments Yet</Text>
-                  <Text style={styles.emptyStateText}>
-                    No assignments available for this course yet.
-                  </Text>
-                </View>
-              ) : (
-                <FlatList
-                  data={filteredAssignments}
-                  keyExtractor={(item) => item.assignmentId}
-                  contentContainerStyle={{ paddingBottom: 40 }}
-                  renderItem={({ item }) => (
-                    <TouchableOpacity
-                      style={styles.assignmentCard}
-                      onPress={() =>
-                        router.push({
-                          pathname: '/student/assignments/submit',
-                          params: { assignmentId: item.assignmentId },
-                        })
-                      }
-                      activeOpacity={0.8}
-                    >
-                      <View style={styles.assignmentHeader}>
-                        <View style={styles.assignmentInfo}>
-                          <Text style={styles.assignmentTitle}>
-                            {item.title}
-                          </Text>
-                          {item.description && (
-                            <Text style={styles.assignmentDescription}>
-                              {item.description}
-                            </Text>
-                          )}
-                          {item.dueDate && (
-                            <View style={styles.dueDateContainer}>
-                              <Ionicons
-                                name="calendar-outline"
-                                size={14}
-                                color="#dc3545"
-                              />
-                              <Text style={styles.assignmentDueDate}>
-                                Due:{' '}
-                                {format(
-                                  new Date(item.dueDate),
-                                  'MMM dd, yyyy HH:mm'
-                                )}
-                              </Text>
-                            </View>
-                          )}
-                        </View>
-                        <View style={styles.actionButton}>
-                          <FontAwesome
-                            name="arrow-right"
-                            size={20}
-                            color="#007BFF"
-                          />
-                        </View>
-                      </View>
-                    </TouchableOpacity>
-                  )}
-                />
-              )}
-            </View>
-          )}
-        </ScrollView>
+        <FlatList
+          data={getDataForActiveTab()}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          contentContainerStyle={styles.flatListContent}
+          ListHeaderComponent={ListHeader}
+          removeClippedSubviews={true}
+          windowSize={10}
+          maxToRenderPerBatch={10}
+          initialNumToRender={10}
+        />
       )}
     </View>
   );
@@ -403,6 +413,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  flatListContent: {
+    paddingBottom: 40,
   },
   loadingContainer: {
     flex: 1,

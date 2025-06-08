@@ -158,7 +158,6 @@ export default function GradeSubmissionsScreen() {
           });
           return;
         } catch (error) {
-          console.log('Could not open with intent, trying alternatives:', error);
         }
       }
       
@@ -168,7 +167,6 @@ export default function GradeSubmissionsScreen() {
           await Linking.openURL(fileUri);
           return;
         } catch (error) {
-          console.log('Could not open with Linking, trying WebBrowser:', error);
         }
         
         try {

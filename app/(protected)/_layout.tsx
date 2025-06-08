@@ -6,9 +6,22 @@ import { ActivityIndicator, View, StyleSheet } from 'react-native';
 export default function ProtectedLayout() {
   const router = useRouter();
   const { isReady, isAuthenticated, profile } = useAuth();
+  
+  useEffect(() => {
+    if (isAuthenticated && profile?.profile?.role) {
+      const role = profile.profile.role;
 
-  console.log("isReady "+ isReady);
-  console.log("isAuthenticated "+ isAuthenticated)
+      if (role === 'STUDENT') {
+        router.replace('/student');
+      } else if (role === 'FACULTY') {
+        router.replace('/faculty');
+      } else if (role === 'ADMIN') {
+        router.replace('/admin');
+      } else {
+        console.error('Unknown role:', role);
+      }
+    }
+  }, [isAuthenticated, profile]);
 
   if (!isReady) {
     return (
@@ -22,22 +35,6 @@ export default function ProtectedLayout() {
     return <Redirect href="/login"/> 
   }
 
-  useEffect(() => {
-    if (isAuthenticated && profile?.profile?.role) {
-      const role = profile.profile.role;
-      console.log('Redirecting based on role:', role);
-
-      if (role === 'STUDENT') {
-        router.replace('/student');
-      } else if (role === 'FACULTY') {
-        router.replace('/faculty');
-      } else if (role === 'ADMIN') {
-        router.replace('/admin');
-      } else {
-        console.error('Unknown role:', role);
-      }
-    }
-  }, [isAuthenticated, profile]);
 
   return (
     <Stack screenOptions={{ headerShown: false }}>

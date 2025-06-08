@@ -79,8 +79,6 @@ const SectionCard: React.FC<SectionCardProps> = ({
       : [];
     
     setContents(validContents);
-
-    console.log('Fetched contents:', validContents);
   } catch (error) {
     console.error('Error fetching content details:', error);
     showToast('Failed to load section contents', 'Error');

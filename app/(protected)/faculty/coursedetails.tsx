@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
   Text,
-  View,
-  StyleSheet,
+  View,  StyleSheet,
   Image,
   TouchableOpacity,
   TextInput,
   ScrollView,
+  FlatList,
   KeyboardAvoidingView,
   ActivityIndicator,
   Alert,
@@ -307,11 +307,16 @@ export default function Displaycourses() {
   const { courseId } = useLocalSearchParams();
   const id = courseId as string;
   const router = useRouter();
-
   useEffect(() => {
     if (id) {
       fetchCourseDetails();
-      if (activeIndex === 1) fetchAssignments();
+    }
+  }, [id]);
+  
+  // Separate effect to handle tab changes
+  useEffect(() => {
+    if (id && activeIndex === 1) {
+      fetchAssignments();
     }
   }, [id, activeIndex]);
 
@@ -606,6 +611,193 @@ export default function Displaycourses() {
       setLoading(false);
     }
   };
+  // Generate data array based on active tab
+  const getDataForActiveTab = () => {
+    if (activeIndex === 0) {
+      return sections;
+    } else if (activeIndex === 1) {
+      return assignments.filter(a => 
+        a.title.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    return [];
+  };
+
+  // Render item based on active tab
+  const renderItem = ({ item, index }) => {
+    if (activeIndex === 0) {
+      return (
+        <Animated.View
+          style={[
+            styles.sectionCard,
+            {
+              opacity: 1,
+              transform: [{ translateY: 0 }]
+            }
+          ]}
+        >
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionNumber}>
+              <Text style={styles.sectionNumberText}>{index + 1}</Text>
+            </View>
+            <View style={styles.sectionContent}>
+              <Text style={styles.sectionTitle}>{item.sectionTitle}</Text>
+              <Text style={styles.sectionDesc}>{item.sectionDesc}</Text>
+            </View>
+          </View>
+          <SectionCard
+            section_id={Number(item.section_id)}
+            title={item.sectionTitle}
+            desc={item.sectionDesc}
+            course_id={course?.course_id ? Number(course.course_id) : 0}
+            onrefresh={fetchCourseDetails}
+          />
+        </Animated.View>
+      );
+    } else if (activeIndex === 1) {
+      return (
+        <TouchableOpacity
+          style={styles.assignmentCard}
+          activeOpacity={0.85}
+          onPress={() => router.push(`/faculty/assignments/grade?id=${item.assignmentId}`)}
+        >
+          <View style={styles.assignmentHeader}>
+            <Text style={styles.assignmentTitle}>{item.title}</Text>
+            <View style={styles.assignmentActions}>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => handleEditAssignment(item.assignmentId)}
+              >
+                <MaterialIcons name="edit" size={20} color="#007BFF" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.actionButton}
+                onPress={() => deleteAssignment(item.assignmentId)}
+              >
+                <MaterialIcons name="delete" size={20} color="#dc3545" />
+              </TouchableOpacity>
+            </View>
+          </View>
+          {item.description && (
+            <Text style={styles.assignmentDescription}>
+              {item.description}
+            </Text>
+          )}
+          {item.dueDate && (
+            <View style={styles.dueDateContainer}>
+              <Ionicons name="calendar-outline" size={14} color="#dc3545" />
+              <Text style={styles.assignmentDueDate}>
+                Due: {format(new Date(item.dueDate), 'MMM dd, yyyy HH:mm')}
+              </Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      );
+    }
+    return null;
+  };
+
+  // Header component for the FlatList
+  const ListHeader = () => {
+    if (!course) return null;
+    
+    return (
+      <>
+        <View style={styles.courseCard}>
+          <Image style={styles.image} source={{ uri: course.imageUrl }} />
+          <View style={styles.courseInfo}>
+            <Text style={styles.courseTitle}>{course.courseTitle}</Text>
+            <Text style={styles.instructor}>
+              👨‍🏫 {course.instructorName} • {course.dept}
+            </Text>
+            <View style={styles.courseMeta}>
+              <View style={styles.metaItem}>
+                <Ionicons name="time-outline" size={16} color="#007BFF" />
+                <Text style={styles.metaText}>{course.duration} Weeks</Text>
+              </View>
+              <View style={styles.metaItem}>
+                <Ionicons name="school-outline" size={16} color="#007BFF" />
+                <Text style={styles.metaText}>{course.credit} Credits</Text>
+              </View>
+              <View style={[
+                styles.statusBadge,
+                { backgroundColor: course.isActive ? '#28a745' : '#dc3545' }
+              ]}>
+                <Text style={styles.statusText}>
+                  {course.isActive ? 'Active' : 'Inactive'}
+                </Text>
+              </View>
+            </View>
+            <Text style={styles.description}>{course.courseDescription}</Text>
+          </View>
+        </View>
+
+        <View style={styles.tabBar}>
+          {menu.map((item, idx) => (
+            <TouchableOpacity
+              key={item}
+              style={[styles.tab, activeIndex === idx && styles.activeTab]}
+              onPress={() => handleTabPress(idx)}
+              activeOpacity={0.7}
+            >
+              <Text style={[
+                styles.tabText,
+                activeIndex === idx && styles.activeTabText
+              ]}>
+                {item}
+              </Text>
+              {activeIndex === idx && <View style={styles.tabIndicator} />}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Search bar for assignments tab */}
+        {activeIndex === 1 && (
+          <View style={styles.searchContainer}>
+            <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search assignments..."
+              placeholderTextColor="#999"
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+          </View>
+        )}
+
+        {/* Empty state handling */}
+        {((activeIndex === 0 && sections.length === 0) || 
+          (activeIndex === 1 && assignments.length === 0)) && (
+          <View style={styles.emptyState}>
+            <View style={styles.emptyIconContainer}>
+              <Ionicons 
+                name={activeIndex === 0 ? "library-outline" : "document-text-outline"} 
+                size={60} 
+                color="#007BFF" 
+              />
+            </View>
+            <Text style={styles.emptyStateTitle}>
+              {activeIndex === 0 ? "No Sections Yet" : "No Assignments Yet"}
+            </Text>
+            <Text style={styles.emptyStateText}>
+              {activeIndex === 0 
+                ? "Create your first section to organize course content and get started."
+                : "Create your first assignment to engage students with coursework."
+              }
+            </Text>
+          </View>
+        )}
+      </>
+    );
+  };
+
+  const keyExtractor = (item) => {
+    if (activeIndex === 0) {
+      return `section-${item.section_id}`;
+    } else {
+      return `assignment-${item.assignmentId}`;
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -619,177 +811,20 @@ export default function Displaycourses() {
       )}
 
       {!loading && course && (
-        <>
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={styles.courseCard}>
-              <Image style={styles.image} source={{ uri: course.imageUrl }} />
-              <View style={styles.courseInfo}>
-                <Text style={styles.courseTitle}>{course.courseTitle}</Text>
-                <Text style={styles.instructor}>
-                  👨‍🏫 {course.instructorName} • {course.dept}
-                </Text>
-                <View style={styles.courseMeta}>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="time-outline" size={16} color="#007BFF" />
-                    <Text style={styles.metaText}>{course.duration} Weeks</Text>
-                  </View>
-                  <View style={styles.metaItem}>
-                    <Ionicons name="school-outline" size={16} color="#007BFF" />
-                    <Text style={styles.metaText}>{course.credit} Credits</Text>
-                  </View>
-                  <View style={[
-                    styles.statusBadge,
-                    { backgroundColor: course.isActive ? '#28a745' : '#dc3545' }
-                  ]}>
-                    <Text style={styles.statusText}>
-                      {course.isActive ? 'Active' : 'Inactive'}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={styles.description}>{course.courseDescription}</Text>
-              </View>
-            </View>
-
-            <View style={styles.tabBar}>
-              {menu.map((item, idx) => (
-                <TouchableOpacity
-                  key={item}
-                  style={[styles.tab, activeIndex === idx && styles.activeTab]}
-                  onPress={() => handleTabPress(idx)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[
-                    styles.tabText,
-                    activeIndex === idx && styles.activeTabText
-                  ]}>
-                    {item}
-                  </Text>
-                  {activeIndex === idx && <View style={styles.tabIndicator} />}
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {activeIndex === 0 && (
-              <View style={styles.tabContent}>
-                {sections.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <View style={styles.emptyIconContainer}>
-                      <Ionicons name="library-outline" size={60} color="#007BFF" />
-                    </View>
-                    <Text style={styles.emptyStateTitle}>No Sections Yet</Text>
-                    <Text style={styles.emptyStateText}>
-                      Create your first section to organize course content and get started.
-                    </Text>
-                  </View>
-                ) : (
-                  <View style={styles.sectionList}>
-                    {sections.map((section, index) => (
-                      <Animated.View
-                        key={section.section_id}
-                        style={[
-                          styles.sectionCard,
-                          {
-                            opacity: 1,
-                            transform: [{ translateY: 0 }]
-                          }
-                        ]}
-                      >
-                        <View style={styles.sectionHeader}>
-                          <View style={styles.sectionNumber}>
-                            <Text style={styles.sectionNumberText}>{index + 1}</Text>
-                          </View>
-                          <View style={styles.sectionContent}>
-                            <Text style={styles.sectionTitle}>{section.sectionTitle}</Text>
-                            <Text style={styles.sectionDesc}>{section.sectionDesc}</Text>
-                          </View>
-                        </View>
-                        <SectionCard
-                          section_id={Number(section.section_id)}
-                          title={section.sectionTitle}
-                          desc={section.sectionDesc}
-                          course_id={course?.course_id ? Number(course.course_id) : 0}
-                          onrefresh={fetchCourseDetails}
-                        />
-                      </Animated.View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-
-            {activeIndex === 1 && (
-              <View style={styles.tabContent}>
-                <View style={styles.searchContainer}>
-                  <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
-                  <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search assignments..."
-                    placeholderTextColor="#999"
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                  />
-                </View>
-
-                {assignments.length === 0 ? (
-                  <View style={styles.emptyState}>
-                    <View style={styles.emptyIconContainer}>
-                      <Ionicons name="document-text-outline" size={60} color="#007BFF" />
-                    </View>
-                    <Text style={styles.emptyStateTitle}>No Assignments Yet</Text>
-                    <Text style={styles.emptyStateText}>
-                      Create your first assignment to engage students with coursework.
-                    </Text>
-                  </View>
-                ) : (
-                  <View>
-                    {assignments
-                      .filter(a => a.title.toLowerCase().includes(searchQuery.toLowerCase()))
-                      .map((item, index) => (
-                        <TouchableOpacity
-                          key={item.assignmentId}
-                          style={styles.assignmentCard}
-                          activeOpacity={0.85}
-                          onPress={() => router.push(`/faculty/assignments/grade?id=${item.assignmentId}`)}
-                        >
-                          <View style={styles.assignmentHeader}>
-                            <Text style={styles.assignmentTitle}>{item.title}</Text>
-                            <View style={styles.assignmentActions}>
-                              <TouchableOpacity
-                                style={styles.actionButton}
-                                onPress={() => handleEditAssignment(item.assignmentId)}
-                              >
-                                <MaterialIcons name="edit" size={20} color="#007BFF" />
-                              </TouchableOpacity>
-                              <TouchableOpacity
-                                style={styles.actionButton}
-                                onPress={() => deleteAssignment(item.assignmentId)}
-                              >
-                                <MaterialIcons name="delete" size={20} color="#dc3545" />
-                              </TouchableOpacity>
-                            </View>
-                          </View>
-                          {item.description && (
-                            <Text style={styles.assignmentDescription}>
-                              {item.description}
-                            </Text>
-                          )}
-                          {item.dueDate && (
-                            <View style={styles.dueDateContainer}>
-                              <Ionicons name="calendar-outline" size={14} color="#dc3545" />
-                              <Text style={styles.assignmentDueDate}>
-                                Due: {format(new Date(item.dueDate), 'MMM dd, yyyy HH:mm')}
-                              </Text>
-                            </View>
-                          )}
-                        </TouchableOpacity>
-                      ))
-                    }
-                  </View>
-                )}
-              </View>
-            )}
-          </ScrollView>
-        </>
+        <FlatList
+          data={getDataForActiveTab()}
+          keyExtractor={keyExtractor}
+          renderItem={renderItem}
+          ListHeaderComponent={ListHeader}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.flatListContent}
+          ListEmptyComponent={null} // We handle empty states in the header
+          onRefresh={fetchCourseDetails}
+          refreshing={loading}
+          removeClippedSubviews={true}
+          windowSize={10}
+          maxToRenderPerBatch={10}
+        />
       )}
 
       <TouchableOpacity
@@ -926,6 +961,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8f9fa',
+  },
+  flatListContent: {
+    paddingBottom: 100,
   },
   loadingContainer: {
     flex: 1,

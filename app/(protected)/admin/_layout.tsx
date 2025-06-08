@@ -8,7 +8,6 @@ import { useAuth } from '@/hooks/useAuth';
 export default function AdminTabsLayout() {
   const { profile } = useAuth();
   const user = profile?.profile;
-  console.log("Admin dash")
   if (!user || user.role !== 'ADMIN') {
     return null;
   }

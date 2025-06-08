@@ -24,7 +24,6 @@ export default function RootLayout() {
 
   // Show a loading screen while fonts are loading
 
-  console.log('RootLayout rendered');
   return (
     <AuthProvider>
       <Stack screenOptions={{ headerShown: false }}>

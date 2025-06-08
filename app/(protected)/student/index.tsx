@@ -192,7 +192,7 @@ export default function StudentDashboard() {
       const attendanceResponse = await api.get('/attendance/allattendancepercentage');
       const attendanceData: AttendanceData[] = attendanceResponse.data || [];
 
-      const studentAttendance = attendanceData.find(record => record.stdId === user.id);
+      const studentAttendance = attendanceData.find(record => record.stdId === user?.id);
 
       if (studentAttendance) {
         setStats(prev => ({
