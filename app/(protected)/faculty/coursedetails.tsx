@@ -25,6 +25,7 @@ import { format } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FileUploader, { FileInfo } from '@/components/FileUploader';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import StudentProgressReport from './courses/student_report';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -788,6 +789,13 @@ export default function Displaycourses() {
                 )}
               </View>
             )}
+
+            {activeIndex === 2 && (
+                          <View style={styles.tabContent}>
+                            <StudentProgressReport courseId={id} />
+                          </View>
+                        )}
+
           </ScrollView>
         </>
       )}

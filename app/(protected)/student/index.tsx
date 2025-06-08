@@ -9,6 +9,8 @@ import {
   Modal,
   FlatList,
   Alert,
+  Dimensions,
+  ImageBackground,
 } from 'react-native';
 import {
   COLORS,
@@ -22,13 +24,15 @@ import {
   BookOpen,
   Bookmark,
   ChevronRight,
-  X,
-  Award,
   Calendar,
+  TrendingUp,
+  Star,
 } from 'lucide-react-native';
 import { useAuth } from '@/hooks/useAuth';
 import api from '@/service/api';
 import { router } from 'expo-router';
+
+const { width } = Dimensions.get('window');
 
 interface Course {
   course_id: number;
@@ -48,13 +52,6 @@ interface Enrollment {
   courseId: string;
   rollNums: string[];
   courseDetails?: Course;
-}
-
-interface Assignment {
-  id: number;
-  name: string;
-  course: string;
-  dueDate: string;
 }
 
 interface AttendanceData {
@@ -81,9 +78,8 @@ export default function StudentDashboard() {
   });
 
   const [availableCoursesList, setAvailableCoursesList] = useState<Course[]>([]);
-  const [enrolledCoursesList, setEnrolledCoursesList] = useState<Enrollment[]>([]);
+  const [enrolledCoursesList, setEnrolledCoursesLst] = useState<Enrollment[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [recentCourses, setRecentCourses] = useState<Course[]>([]);
 
   const [loading, setLoading] = useState({
@@ -113,7 +109,6 @@ export default function StudentDashboard() {
         loadEnrolledCourses(),
         loadAvailableCourses(),
         loadAttendanceData(),
-        loadAssignments(),
       ]);
     } catch (error) {
       console.error("Error loading dashboard data:", error);
@@ -126,8 +121,6 @@ export default function StudentDashboard() {
   const loadEnrolledCourses = async () => {
     if (!user?.id) return;
     try {
-     
-      // Using correct endpoint format
       const enrolledResponse = await api.get(`/course-enrollment/by-student/${user.id}`);
       const enrolledCourseIds: string[] = enrolledResponse.data || [];
     
@@ -137,26 +130,7 @@ export default function StudentDashboard() {
       const enrichedEnrollments: Enrollment[] = [];
       const recentCoursesData: Course[] = [];
 
-      for (const courseId of enrolledCourseIds) {
-        try {
-          const courseDetailsResponse = await api.get(`/course/details/${courseId}`);
-          const courseDetails = courseDetailsResponse.data;
-
-          enrichedEnrollments.push({
-            courseId,
-            rollNums: [],
-            courseDetails
-          });
-
-          if (recentCoursesData.length < 3) {
-            recentCoursesData.push(courseDetails);
-          }
-        } catch (error) {
-          console.error(`Error fetching details for course ${courseId}:`, error);
-        }
-      }
-
-      setEnrolledCoursesList(enrichedEnrollments);
+      setEnrolledCoursesLst(enrichedEnrollments);
       setRecentCourses(recentCoursesData);
       setStats(prev => ({ 
         ...prev, 
@@ -214,34 +188,6 @@ export default function StudentDashboard() {
       }));
     }
   };
-
-  const loadAssignments = async () => {
-    try {
-      const mockAssignments: Assignment[] = [
-        { id: 1, name: 'Algebra Homework', course: 'Mathematics', dueDate: '2024-06-10' },
-        { id: 2, name: 'Lab Report', course: 'Physics', dueDate: '2024-06-12' },
-        { id: 3, name: 'Organic Chemistry Essay', course: 'Chemistry', dueDate: '2024-06-15' },
-      ];
-      setAssignments(mockAssignments);
-    } catch (error) {
-      console.error("Error loading assignments:", error);
-    }
-  };
-
-  const fetchCourseDetails = async (courseId: string) => {
-    try {
-      setLoading(prev => ({ ...prev, courseDetails: true }));
-      const response = await api.get(`/course/details/${courseId}`);
-      setSelectedCourse(response.data);
-      setModalVisible(prev => ({ ...prev, courseDetails: true }));
-    } catch (error) {
-      console.error("Error fetching course details:", error);
-      Alert.alert('Error', 'Failed to load course details');
-    } finally {
-      setLoading(prev => ({ ...prev, courseDetails: false }));
-    }
-  };
-
   const handleEnrolledCoursesClick = async () => {
     if (enrolledCoursesList.length === 0) {
       setLoading(prev => ({ ...prev, enrolled: true }));
@@ -258,301 +204,133 @@ export default function StudentDashboard() {
     setModalVisible(prev => ({ ...prev, availableCourses: true }));
   };
 
+  const getAttendanceColor = (percentage: number) => {
+    if (percentage >= 80) return '#10B981';
+    if (percentage >= 60) return '#F59E0B';
+    if (percentage >= 40) return '#F87171';
+    return '#EF4444';
+  };
+
+  const getAttendanceIcon = (percentage: number) => {
+    if (percentage >= 80) return '🎯';
+    if (percentage >= 60) return '⚠️';
+    return '🚨';
+  };
+
   if (loading.main) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading dashboard...</Text>
+        <Text style={styles.loadingText}>Loading your dashboard...</Text>
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <Header title={`Hello, ${user?.name?.split(' ')[0] || 'Student'}`} />
-
+      {/* Enhanced Header with Gradient */}
+      <Header title={`Welcome, ${user?.name?.split(' ')[0] || 'Student'}`} />
       <ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
+        {/* Enhanced Stats Cards */}
         <View style={styles.statsContainer}>
           <TouchableOpacity 
-            style={[styles.statCard, styles.enrolledCard]}
+            style={[styles.statCard, styles.primaryCard]}
             onPress={handleEnrolledCoursesClick}
+            activeOpacity={0.8}
           >
-            <View style={styles.statIconContainer}>
-              <BookOpen size={24} color={COLORS.primary} />
+            <View style={styles.statCardHeader}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#E0F2FE' }]}>
+                <BookOpen size={24} color="#0EA5E9" />
+              </View>
+              <ChevronRight size={20} color={COLORS.gray} />
             </View>
-            <View>
-              <Text style={styles.statValue}>{stats.enrolledCourses}</Text>
-              <Text style={styles.statLabel}>Enrolled Courses</Text>
+            <Text style={styles.statValue}>{stats.enrolledCourses}</Text>
+            <Text style={styles.statLabel}>Enrolled Courses</Text>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: '75%', backgroundColor: '#0EA5E9' }]} />
             </View>
           </TouchableOpacity>
 
           <TouchableOpacity 
-            style={[styles.statCard, styles.availableCard]}
+            style={[styles.statCard, styles.secondaryCard]}
             onPress={handleAvailableCoursesClick}
+            activeOpacity={0.8}
           >
-            <View style={styles.statIconContainer}>
-              <Bookmark size={24} color={COLORS.secondary} />
+            <View style={styles.statCardHeader}>
+              <View style={[styles.statIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                <Bookmark size={24} color="#F59E0B" />
+              </View>
+              <ChevronRight size={20} color={COLORS.gray} />
             </View>
-            <View>
-              <Text style={styles.statValue}>{stats.availableCourses}</Text>
-              <Text style={styles.statLabel}>Available Courses</Text>
+            <Text style={styles.statValue}>{stats.availableCourses}</Text>
+            <Text style={styles.statLabel}>Available Courses</Text>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: '60%', backgroundColor: '#F59E0B' }]} />
             </View>
           </TouchableOpacity>
+        </View>
 
-          <View style={[styles.statCard, styles.attendanceCard]}>
-            <View style={styles.statIconContainer}>
-              <Award size={24} color={COLORS.accent} />
+        {/* Enhanced Attendance Card */}
+        <View style={[styles.attendanceCard, { borderColor: getAttendanceColor(stats.attendancePercentage) }]}>
+          <View style={styles.attendanceHeader}>
+            <View style={styles.attendanceInfo}>
+              <Text style={styles.attendanceLabel}>Attendance Rate</Text>
+              <View style={styles.attendanceValueContainer}>
+                <Text style={[styles.attendanceValue, { color: getAttendanceColor(stats.attendancePercentage) }]}>
+                  {stats.attendancePercentage}%
+                </Text>
+                <Text style={styles.attendanceEmoji}>{getAttendanceIcon(stats.attendancePercentage)}</Text>
+              </View>
             </View>
-            <View>
-              <Text style={styles.statValue}>{stats.attendancePercentage}%</Text>
-              <Text style={styles.statLabel}>Attendance</Text>
+            <View style={[styles.attendanceIconContainer, { backgroundColor: getAttendanceColor(stats.attendancePercentage) + '20' }]}>
+              <TrendingUp size={24} color={getAttendanceColor(stats.attendancePercentage)} />
             </View>
+          </View>
+          <View style={styles.attendanceProgressContainer}>
+            <View style={styles.attendanceProgressBar}>
+              <View 
+                style={[
+                  styles.attendanceProgressFill, 
+                  { 
+                    width: `${stats.attendancePercentage}%`, 
+                    backgroundColor: getAttendanceColor(stats.attendancePercentage) 
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={styles.attendanceProgressText}>
+              {stats.attendancePercentage >= 75 ? 'Great job!' : 'Needs improvement'}
+            </Text>
           </View>
         </View>
 
-        
-
-        {/* Exam Timetable Card */}
+        {/* Enhanced Exam Timetable Card */}
         <View style={styles.sectionContainer}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Exam Timetable</Text>
-            <Calendar size={24} color={COLORS.primary} />
-          </View>
-
           <View style={styles.examTimetableCard}>
-            <Text style={styles.examTimetableText}>
-              Download your <Text style={styles.examHighlight}>Exam Timetable</Text>
-            </Text>
+            <View style={styles.examTimetableHeader}>
+              <View style={styles.examIconContainer}>
+                <Calendar size={32} color={COLORS.white} />
+              </View>
+              <View style={styles.examTimetableInfo}>
+                <Text style={styles.examTimetableTitle}>Exam Timetable</Text>
+                <Text style={styles.examTimetableSubtitle}>
+                  Stay updated with your exam schedule
+                </Text>
+              </View>
+              <Star size={24} color="#FFD700" />
+            </View>
+            
             <TouchableOpacity
               style={styles.viewTimetableButton}
               onPress={() => router.push('/exam-timetable')}
+              activeOpacity={0.8}
             >
               <Text style={styles.viewTimetableText}>View Full Timetable</Text>
+              <ChevronRight size={20} color={COLORS.white} />
             </TouchableOpacity>
           </View>
         </View>
-
       </ScrollView>
-
-      {/* Enrolled Courses Modal */}
-      <Modal
-        visible={modalVisible.enrolledCourses}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Enrolled Courses</Text>
-            <TouchableOpacity
-              onPress={() => setModalVisible(prev => ({ ...prev, enrolledCourses: false }))}
-            >
-              <X size={24} color={COLORS.gray} />
-            </TouchableOpacity>
-          </View>
-
-          {loading.enrolled ? (
-            <View style={styles.modalLoadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Loading enrolled courses...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={enrolledCoursesList}
-              keyExtractor={(item) => item.courseId}
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.modalCourseCard}
-                  onPress={() => {
-                    setModalVisible(prev => ({ ...prev, enrolledCourses: false }));
-                    fetchCourseDetails(item.courseId);
-                  }}
-                >
-                  <View style={styles.modalCourseInfo}>
-                    <Text style={styles.modalCourseTitle}>
-                      {item.courseDetails?.courseTitle}
-                    </Text>
-                    <Text style={styles.modalCourseDept}>
-                      {item.courseDetails?.dept}
-                    </Text>
-                    <View style={styles.modalCourseStatus}>
-                      <Text style={[
-                        styles.statusBadge,
-                        item.courseDetails?.isActive ? styles.activeBadge : styles.inactiveBadge
-                      ]}>
-                        {item.courseDetails?.isActive ? 'Active' : 'Inactive'}
-                      </Text>
-                    </View>
-                  </View>
-                  <ChevronRight size={20} color={COLORS.gray} />
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={styles.emptyModalContent}>
-                  <BookOpen size={48} color={COLORS.gray} />
-                  <Text style={styles.emptyModalTitle}>No enrolled courses</Text>
-                  <Text style={styles.emptyModalText}>
-                    You haven't enrolled in any courses yet
-                  </Text>
-                </View>
-              }
-            />
-          )}
-        </View>
-      </Modal>
-
-      {/* Available Courses Modal */}
-      <Modal
-        visible={modalVisible.availableCourses}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Available Courses</Text>
-            <TouchableOpacity
-              onPress={() => setModalVisible(prev => ({ ...prev, availableCourses: false }))}
-            >
-              <X size={24} color={COLORS.gray} />
-            </TouchableOpacity>
-          </View>
-
-          {loading.available ? (
-            <View style={styles.modalLoadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Loading available courses...</Text>
-            </View>
-          ) : (
-            <FlatList
-              data={availableCoursesList}
-              keyExtractor={(item) => item.course_id.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity 
-                  style={styles.modalCourseCard}
-                  onPress={() => {
-                    setModalVisible(prev => ({ ...prev, availableCourses: false }));
-                    fetchCourseDetails(item.course_id.toString());
-                  }}
-                >
-                  <View style={styles.modalCourseInfo}>
-                    <Text style={styles.modalCourseTitle}>{item.courseTitle}</Text>
-                    <Text style={styles.modalCourseDept}>{item.dept}</Text>
-                    <View style={styles.modalCourseStatus}>
-                      <Text style={[
-                        styles.statusBadge,
-                        item.isActive ? styles.activeBadge : styles.inactiveBadge
-                      ]}>
-                        {item.isActive ? 'Active' : 'Inactive'}
-                      </Text>
-                    </View>
-                  </View>
-                  <ChevronRight size={20} color={COLORS.gray} />
-                </TouchableOpacity>
-              )}
-              ListEmptyComponent={
-                <View style={styles.emptyModalContent}>
-                  <BookOpen size={48} color={COLORS.gray} />
-                  <Text style={styles.emptyModalTitle}>No courses available</Text>
-                  <Text style={styles.emptyModalText}>
-                    There are currently no courses available for enrollment
-                  </Text>
-                </View>
-              }
-            />
-          )}
-        </View>
-      </Modal>
-
-      {/* Course Details Modal */}
-      <Modal
-        visible={modalVisible.courseDetails}
-        animationType="slide"
-        presentationStyle="pageSheet"
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Course Details</Text>
-            <TouchableOpacity
-              onPress={() => setModalVisible(prev => ({ ...prev, courseDetails: false }))}
-            >
-              <X size={24} color={COLORS.gray} />
-            </TouchableOpacity>
-          </View>
-
-          {loading.courseDetails ? (
-            <View style={styles.modalLoadingContainer}>
-              <ActivityIndicator size="large" color={COLORS.primary} />
-              <Text style={styles.loadingText}>Loading course details...</Text>
-            </View>
-          ) : selectedCourse ? (
-            <ScrollView style={styles.courseDetailsContainer}>
-              <View style={styles.courseDetailsGrid}>
-                <View style={styles.courseDetailItem}>
-                  <Text style={styles.courseDetailLabel}>Course ID</Text>
-                  <Text style={styles.courseDetailValue}>
-                    {selectedCourse.course_id}
-                  </Text>
-                </View>
-
-                <View style={styles.courseDetailItem}>
-                  <Text style={styles.courseDetailLabel}>Course Code</Text>
-                  <Text style={styles.courseDetailValue}>
-                    {selectedCourse.courseCode || 'N/A'}
-                  </Text>
-                </View>
-
-                <View style={styles.courseDetailItem}>
-                  <Text style={styles.courseDetailLabel}>Title</Text>
-                  <Text style={styles.courseDetailValue}>
-                    {selectedCourse.courseTitle}
-                  </Text>
-                </View>
-
-                <View style={styles.courseDetailItem}>
-                  <Text style={styles.courseDetailLabel}>Department</Text>
-                  <Text style={styles.courseDetailValue}>
-                    {selectedCourse.dept}
-                  </Text>
-                </View>
-
-                <View style={styles.courseDetailItem}>
-                  <Text style={styles.courseDetailLabel}>Duration</Text>
-                  <Text style={styles.courseDetailValue}>
-                    {selectedCourse.duration} weeks
-                  </Text>
-                </View>
-
-                <View style={styles.courseDetailItem}>
-                  <Text style={styles.courseDetailLabel}>Credits</Text>
-                  <Text style={styles.courseDetailValue}>
-                    {selectedCourse.credit}
-                  </Text>
-                </View>
-
-                <View style={styles.courseDetailItem}>
-                  <Text style={styles.courseDetailLabel}>Status</Text>
-                  <Text style={[
-                    styles.statusBadge,
-                    selectedCourse.isActive ? styles.activeBadge : styles.inactiveBadge
-                  ]}>
-                    {selectedCourse.isActive ? 'Active' : 'Inactive'}
-                  </Text>
-                </View>
-              </View>
-
-              <View style={styles.courseDescriptionContainer}>
-                <Text style={styles.courseDetailLabel}>Description</Text>
-                <Text style={styles.courseDescription}>
-                  {selectedCourse.courseDescription}
-                </Text>
-              </View>
-            </ScrollView>
-          ) : (
-            <View style={styles.emptyModalContent}>
-              <Text style={styles.emptyModalTitle}>No course details available</Text>
-            </View>
-          )}
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -562,232 +340,189 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: COLORS.background,
   },
+  content: {
+    flex: 1,
+    padding: SPACING.md,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: COLORS.background,
+    backgroundColor: '#F8FAFC',
   },
   loadingText: {
     marginTop: SPACING.sm,
-    fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
+    fontFamily: FONT.medium,
+    fontSize: SIZES.md,
     color: COLORS.gray,
   },
+
   scrollContainer: {
     flex: 1,
     padding: SPACING.md,
+    marginTop: -20,
   },
   statsContainer: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     marginBottom: SPACING.lg,
     gap: SPACING.md,
   },
   statCard: {
-    backgroundColor: COLORS.white,
-    borderRadius: 12,
-    padding: SPACING.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...SHADOWS.small,
-  },
-  availableCard: {
-    borderLeftColor: COLORS.primary,
-    borderLeftWidth: 4,
-  },
-  enrolledCard: {
-    borderLeftColor: COLORS.secondary,
-    borderLeftWidth: 4,
-  },
-  attendanceCard: {
-    borderLeftColor: COLORS.accent,
-    borderLeftWidth: 4,
-  },
-  statIconContainer: { 
-    marginRight: SPACING.md,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.lightGray,
-    borderRadius: 8,
-  },
-  statValue: {
-    fontFamily: FONT.bold,
-    fontSize: SIZES.xl,
-    color: COLORS.darkGray,
-  },
-  statLabel: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.md,
-    color: COLORS.gray,
-  },
-  modalContainer: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: SPACING.lg,
+    ...SHADOWS.medium,
+    elevation: 4,
   },
-  modalHeader: {
+  primaryCard: {
+    borderTopColor: '#0EA5E9',
+    borderTopWidth: 3,
+  },
+  secondaryCard: {
+    borderTopColor: '#F59E0B',
+    borderTopWidth: 3,
+  },
+  statCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: SPACING.md,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.lightGray,
+    marginBottom: SPACING.md,
   },
-  modalTitle: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.lg,
-    color: COLORS.darkGray,
-  },
-  modalLoadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalCourseCard: {
-    backgroundColor: COLORS.white,
-    marginHorizontal: SPACING.md,
-    marginVertical: SPACING.sm,
+  statIconContainer: {
+    padding: SPACING.sm,
     borderRadius: 12,
-    padding: SPACING.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    ...SHADOWS.small,
   },
-  modalCourseInfo: {
-    flex: 1,
-  },
-  modalCourseTitle: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
+  statValue: {
+    fontFamily: FONT.bold,
+    fontSize: 32,
     color: COLORS.darkGray,
     marginBottom: 4,
   },
-  modalCourseDept: {
-    fontFamily: FONT.regular,
+  statLabel: {
+    fontFamily: FONT.medium,
     fontSize: SIZES.sm,
     color: COLORS.gray,
     marginBottom: SPACING.sm,
   },
-  modalCourseStatus: {
-    alignSelf: 'flex-start',
-  },
-  statusBadge: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.xs,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: 4,
-    borderRadius: 12,
+  progressBar: {
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
     overflow: 'hidden',
   },
-  activeBadge: {
-    backgroundColor: COLORS.primary,
-    color: COLORS.white,
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
   },
-  inactiveBadge: {
-    backgroundColor: COLORS.lightGray,
-    color: COLORS.gray,
+  attendanceCard: {
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    padding: SPACING.lg,
+    marginBottom: SPACING.lg,
+    borderWidth: 2,
+    ...SHADOWS.medium,
+    elevation: 4,
   },
-  emptyModalContent: {
+  attendanceHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: SPACING.md,
+  },
+  attendanceInfo: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: SPACING.xl,
   },
-  emptyModalTitle: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.lg,
-    color: COLORS.darkGray,
-    marginTop: SPACING.md,
+  attendanceLabel: {
+    fontFamily: FONT.medium,
+    fontSize: SIZES.md,
+    color: COLORS.gray,
+    marginBottom: 4,
+  },
+  attendanceValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
+  },
+  attendanceValue: {
+    fontFamily: FONT.bold,
+    fontSize: 36,
+  },
+  attendanceEmoji: {
+    fontSize: 24,
+  },
+  attendanceIconContainer: {
+    padding: SPACING.sm,
+    borderRadius: 12,
+  },
+  attendanceProgressContainer: {
+    marginTop: SPACING.sm,
+  },
+  attendanceProgressBar: {
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden',
     marginBottom: SPACING.sm,
   },
-  emptyModalText: {
-    fontFamily: FONT.regular,
+  attendanceProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  attendanceProgressText: {
+    fontFamily: FONT.medium,
     fontSize: SIZES.sm,
     color: COLORS.gray,
     textAlign: 'center',
   },
-  courseDetailsContainer: {
-    flex: 1,
-    padding: SPACING.md,
-  },
-  courseDetailsGrid: {
+  sectionContainer: {
     marginBottom: SPACING.lg,
   },
-  courseDetailItem: {
+  examTimetableCard: {
     backgroundColor: COLORS.white,
-    padding: SPACING.md,
-    borderRadius: 8,
-    marginBottom: SPACING.sm,
-    ...SHADOWS.small,
+    borderRadius: 16,
+    padding: SPACING.lg,
+    ...SHADOWS.medium,
+    elevation: 4,
   },
-  courseDetailLabel: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.sm,
-    color: COLORS.gray,
+  examTimetableHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: SPACING.lg,
+  },
+  examIconContainer: {
+    backgroundColor: COLORS.primary,
+    padding: SPACING.md,
+    borderRadius: 12,
+    marginRight: SPACING.md,
+  },
+  examTimetableInfo: {
+    flex: 1,
+  },
+  examTimetableTitle: {
+    fontFamily: FONT.bold,
+    fontSize: SIZES.lg,
+    color: COLORS.darkGray,
     marginBottom: 4,
   },
-  courseDetailValue: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
-    color: COLORS.darkGray,
-  },
-  courseDescriptionContainer: {
-    backgroundColor: COLORS.white,
-    padding: SPACING.md,
-    borderRadius: 8,
-    ...SHADOWS.small,
-  },
-  courseDescription: {
+  examTimetableSubtitle: {
     fontFamily: FONT.regular,
     fontSize: SIZES.sm,
-    color: COLORS.darkGray,
-    lineHeight: 20,
+    color: COLORS.gray,
   },
-  sectionContainer: {
-      marginBottom: SPACING.lg,
-    },
-    sectionHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: SPACING.md,
-    },
-    sectionTitle: {
-      fontFamily: FONT.semiBold,
-      fontSize: SIZES.lg,
-      color: COLORS.darkGray,
-    },
-    viewAllText: {
-      fontFamily: FONT.medium,
-      fontSize: SIZES.md,
-      color: COLORS.primary,
-    },
-   examTimetableCard: {
-      backgroundColor: COLORS.white,
-      borderRadius: 12,
-      padding: SPACING.md,
-      ...SHADOWS.small,
-    },
-    examTimetableText: {
-      fontFamily: FONT.regular,
-      fontSize: SIZES.md,
-      color: COLORS.darkGray,
-      marginBottom: SPACING.md,
-      textAlign: 'center',
-    },
-    examHighlight: { 
-      fontFamily: FONT.semiBold, 
-      color: COLORS.primary,
-      fontSize: SIZES.md,
-    },
-    viewTimetableButton: {
-      backgroundColor: COLORS.primary,
-      borderRadius: 8,
-      paddingVertical: SPACING.md,
-      paddingHorizontal: SPACING.md,
-      alignSelf: 'center',
-    },
-    viewTimetableText: {
-      fontFamily: FONT.medium,
-      fontSize: SIZES.sm,
-      color: COLORS.white,
-    },
+  viewTimetableButton: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: SPACING.md,
+    paddingHorizontal: SPACING.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
+  },
+  viewTimetableText: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.md,
+    color: COLORS.white,
+  },
 });
