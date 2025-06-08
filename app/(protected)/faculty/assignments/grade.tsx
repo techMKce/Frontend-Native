@@ -11,8 +11,9 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useNavigation } from '@react-navigation/native'; // Add this import
-import * as WebBrowser from 'expo-web-browser';
+import { useNavigation } from '@react-navigation/native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
 import api from '@/service/api';
 import Header from '@/components/shared/Header';
 
@@ -39,7 +40,7 @@ export default function GradeSubmissionsScreen() {
   const [dueDate, setDueDate] = useState<string>('');
   const [assignmentTitle, setAssignmentTitle] = useState<string>('');
   const [gradedCount, setGradedCount] = useState<number>(0);
-  const navigation = useNavigation(); // Add navigation hook
+  const navigation = useNavigation();
 
   const fetchData = async () => {
     if (!assignmentId) {
@@ -49,7 +50,7 @@ export default function GradeSubmissionsScreen() {
     }
 
     try {
-      setLoading(true); // Set loading to true during refresh
+      setLoading(true);
       const [assignmentRes, submissionRes, gradingRes] = await Promise.all([
         api.get('/assignments/id', { params: { assignmentId } }),
         api.get('/submissions', { params: { assignmentId } }),
@@ -92,39 +93,129 @@ export default function GradeSubmissionsScreen() {
   };
 
   useEffect(() => {
-    fetchData(); // Initial fetch
+    fetchData();
 
-    // Add listener for when the screen is focused
     const unsubscribe = navigation.addListener('focus', () => {
-      fetchData(); // Refetch data when screen is focused
+      fetchData();
     });
 
-    // Cleanup listener on unmount
     return unsubscribe;
   }, [assignmentId, navigation]);
 
+  const readBlobAsText = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        if (result.startsWith('data:')) {
+          const base64String = result.split(',')[1];
+          const text = atob(base64String);
+          resolve(text);
+        } else {
+          resolve(result);
+        }
+      };
+      reader.onerror = (error) => reject(error);
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const handleDownloadReport = async () => {
     try {
-      const response = await api.get('/gradings/download-url', {
+      // Fetch the CSV content as a Blob
+      const response = await api.get('/gradings/download', {
         params: { assignmentId },
         responseType: 'blob',
       });
 
-      if (response.data.url) {
-        await WebBrowser.openBrowserAsync(response.data.url);
-      } else if (response.data instanceof Blob) {
-        const fileURL = URL.createObjectURL(response.data);
-        await WebBrowser.openBrowserAsync(fileURL);
-        URL.revokeObjectURL(fileURL);
+      // Log response details for debugging
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+      console.log('Response data type:', response.data instanceof Blob ? 'Blob' : typeof response.data);
+      console.log('Response data size:', response.data.size);
+      console.log('Response data type (Blob):', response.data.type);
+
+      // Check if the response status is 200 OK
+      if (response.status !== 200) {
+        const errorBlob = response.data;
+        const errorText = await readBlobAsText(errorBlob);
+        let errorMessage = 'Failed to download the report.';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.message || errorMessage;
+        } catch (e) {
+          errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Validate that response.data is a Blob
+      if (!(response.data instanceof Blob)) {
+        throw new Error('Response data is not a valid Blob.');
+      }
+
+      // Check Blob size
+      if (response.data.size === 0) {
+        throw new Error('Received an empty Blob.');
+      }
+
+      // Removed strict type check since response.data.type may not reliably reflect Content-Type in React Native
+      // If needed, check response.headers['content-type'] instead
+      const contentType = response.headers['content-type']?.toLowerCase() || '';
+      if (contentType && !contentType.includes('text/csv') && !contentType.includes('application/octet-stream')) {
+        const errorText = await readBlobAsText(response.data);
+        let errorMessage = 'Invalid response type received.';
+        try {
+          const errorJson = JSON.parse(errorText);
+          errorMessage = errorJson.message || errorMessage;
+        } catch (e) {
+          errorMessage = errorText || errorMessage;
+        }
+        throw new Error(errorMessage);
+      }
+
+      // Convert Blob to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(response.data);
+      const base64Data: string = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = (error) => reject(error);
+      });
+
+      // Extract the base64 string (remove the "data:text/csv;base64," prefix)
+      const base64String = base64Data.split(',')[1];
+
+      // Define the file path in the app's document directory
+      const fileName = `grading-report-${assignmentId}-${Date.now()}.csv`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+
+      // Write the file to the device's file system
+      await FileSystem.writeAsStringAsync(fileUri, base64String, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Check if sharing is available (optional, for user interaction)
+      const isSharingAvailable = await Sharing.isAvailableAsync();
+      if (isSharingAvailable) {
+        // Open a sharing dialog to let the user save or share the file
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'text/csv',
+          dialogTitle: 'Save or Share Grading Report',
+          UTI: 'public.comma-separated-values-text',
+        });
       } else {
-        const directDownloadUrl = `${api.defaults.baseURL}/gradings/download?assignmentId=${assignmentId}`;
-        await WebBrowser.openBrowserAsync(directDownloadUrl);
+        // If sharing isn't available, inform the user where the file is saved
+        Alert.alert(
+          'File Saved',
+          `The grading report has been saved to your app's storage at: ${fileUri}`,
+          [{ text: 'OK' }]
+        );
       }
     } catch (err: any) {
       console.error('Download error:', err.message || 'Failed to download report');
       Alert.alert(
         'Download Failed',
-        'Could not download the report. Please try again later.'
+        err.message || 'Could not download the report. Please try again later.'
       );
     }
   };
@@ -144,101 +235,94 @@ export default function GradeSubmissionsScreen() {
   }
 
   return (
-    //<View
     <>
-    <Header title="Grades" />
-    <View style={styles.container}>
-     
-      {/* <TouchableOpacity
-        onPress={() => router.push(`/faculty/courses?courseId=${courseId}`)}
-        style={styles.backLink}
-      >
-        <Text style={styles.backLinkText}>← Back to courses</Text>
-      </TouchableOpacity> */}
+      <Header title="Grades" />
+      <View style={styles.container}>
+        <Text style={styles.header}>Grade Submissions</Text>
+        <Text style={styles.subheader}>{assignmentTitle || '—'}</Text>
 
-      <Text style={styles.header}>Grade Submissions</Text>
-      <Text style={styles.subheader}>{assignmentTitle || '—'}</Text>
-
-      <View style={styles.summaryBox}>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Due Date</Text>
-          <Text style={styles.summaryValue}>
-            {dueDate
-              ? new Date(dueDate).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                })
-              : '—'}
-          </Text>
+        <View style={styles.summaryBox}>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Due Date</Text>
+            <Text style={styles.summaryValue}>
+              {dueDate
+                ? new Date(dueDate).toLocaleDateString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                : '—'}
+            </Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Submissions</Text>
+            <Text style={styles.summaryValue}>{submissions.length}</Text>
+          </View>
+          <View style={styles.summaryItem}>
+            <Text style={styles.summaryLabel}>Graded</Text>
+            <Text style={styles.summaryValue}>
+              {gradedCount} / {submissions.length}
+            </Text>
+          </View>
         </View>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Submissions</Text>
-          <Text style={styles.summaryValue}>{submissions.length}</Text>
+
+        <TouchableOpacity
+          style={styles.downloadButton}
+          onPress={handleDownloadReport}
+        >
+          <Icon name="download-outline" size={16} color="#fff" />
+          <Text style={styles.downloadButtonText}>Download Report</Text>
+        </TouchableOpacity>
+
+        <TextInput
+          placeholder="Search by student name or roll number..."
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+        />
+        
+        <View style={styles.tableHeader}>
+          <Text style={[styles.headerCell, { flex: 4 }]}>Student & Roll Number</Text>
+          <Text style={[styles.headerCell, { flex: 1 }]}>Action</Text>
         </View>
-        <View style={styles.summaryItem}>
-          <Text style={styles.summaryLabel}>Graded</Text>
-          <Text style={styles.summaryValue}>
-            {gradedCount} / {submissions.length}
-          </Text>
-        </View>
-      </View>
 
-      <TouchableOpacity
-        style={styles.downloadButton}
-        onPress={handleDownloadReport}
-      >
-        <Icon name="download-outline" size={16} color="#fff" />
-        <Text style={styles.downloadButtonText}>Download Report</Text>
-      </TouchableOpacity>
-
-      <TextInput
-        placeholder="Search by student name or roll number..."
-        style={styles.searchInput}
-        value={search}
-        onChangeText={setSearch}
-      />
-      
-      <View style={styles.tableHeader}>
-        <Text style={[styles.headerCell, { flex: 4 }]}>Student & Roll Number</Text>
-        <Text style={[styles.headerCell, { flex: 1 }]}>Action</Text>
+        <FlatList
+          data={filtered}
+          keyExtractor={(item) => item.id.toString()}
+          renderItem={({ item }) => (
+            <TouchableOpacity
+              style={styles.studentCard}
+              onPress={() => {
+                router.push({
+                  pathname: item.grade
+                    ? '/faculty/assignments/ViewGradedSubmissionScreen'
+                    : '/faculty/assignments/GradeSubmissionScreen',
+                  params: { id: item.id.toString() },
+                });
+              }}
+              accessible={true}
+              accessibilityLabel={`Navigate to ${item.grade ? 'review' : 'grade'} submission for ${item.studentName}`}
+              accessibilityHint={`Taps to ${item.grade ? 'review' : 'grade'} the submission by ${item.studentName} with roll number ${item.studentRollNumber}`}
+            >
+              <View style={[styles.studentInfo, { flex: 3, flexDirection: 'row', alignItems: 'center' }]}>
+                <Icon name="person-circle-outline" size={36} color="#888" />
+                <View style={{ marginLeft: 10 }}>
+                  <Text style={styles.studentName}>{item.studentName}</Text>
+                  <Text style={styles.roll}>{item.studentRollNumber}</Text>
+                </View>
+              </View>
+              <View style={styles.actionButton}>
+                <Icon name="document-text-outline" size={16} color="#fff" />
+                <Text style={styles.actionText}>{item.grade ? 'Review' : 'Grade'}</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        />
       </View>
-
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id.toString()}
-      renderItem={({ item }) => (
-  <View style={styles.studentCard}>
-    <View style={[styles.studentInfo, { flex: 3, flexDirection: 'row', alignItems: 'center' }]}>
-      <Icon name="person-circle-outline" size={36} color="#888" />
-      <View style={{ marginLeft: 10 }}>
-        <Text style={styles.studentName}>{item.studentName}</Text>
-        <Text style={styles.roll}>{item.studentRollNumber}</Text>
-      </View>
-    </View>
-    <TouchableOpacity
-      style={styles.actionButton}
-      onPress={() => {
-        router.push({
-          pathname: item.grade
-            ? '/faculty/assignments/ViewGradedSubmissionScreen'
-            : '/faculty/assignments/GradeSubmissionScreen',
-          params: { id: item.id.toString() },
-        });
-      }}
-    >
-      <Icon name="document-text-outline" size={16} color="#fff" />
-      <Text style={styles.actionText}>{item.grade ? 'Review' : 'Grade'}</Text>
-    </TouchableOpacity>
-  </View>
-)}
-      />
-    </View>
     </>
   );
 }
 
-// Styles remain unchanged
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 16, backgroundColor: '#F6F6F6' },
   header: {
@@ -316,7 +400,6 @@ const styles = StyleSheet.create({
     color: '#777',
     marginTop: 2,
   },
- 
   actionButton: {
     backgroundColor: '#1D4E89',
     flexDirection: 'row',
