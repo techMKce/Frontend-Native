@@ -113,34 +113,7 @@ export default function CoursesManagementScreen() {
     }
   };
 
-  const handleDeleteCourse = async (id: number) => {
-    Alert.alert(
-      'Delete Course',
-      'Are you sure you want to delete this course?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await api.delete(`/course/delete?course_id=${id}`);
-              setCourses((prev) => prev.filter((c) => c.id !== id));
-              Alert.alert('Success', 'Course deleted successfully');
-            } catch (err: any) {
-              console.error('Failed to delete course:', err);
-              Alert.alert(
-                'Error',
-                err.response?.data?.message ||
-                  'Failed to delete course. Please try again.'
-              );
-              fetchCourses();
-            }
-          },
-        },
-      ]
-    );
-  };
+
 
   const filteredCourses = courses.filter((c) => {
     const search = searchQuery.toLowerCase();
@@ -205,12 +178,6 @@ export default function CoursesManagementScreen() {
             />
           )}
         </View>
-        <TouchableOpacity
-          onPress={() => handleDeleteCourse(item.id)}
-          disabled={isProcessing}
-        >
-          <Trash size={24} color={isProcessing ? COLORS.lightGray : COLORS.gray} />
-        </TouchableOpacity>
       </View>
     </View>
   );

@@ -41,18 +41,17 @@ interface Course {
   isEnabled: boolean;
 }
 
-interface Assignment {
-  id: string;
-  studentId: string;
-  facultyId: string;
-  courseId: string;
-}
-
 interface User {
   id: string;
   name: string;
   type: 'student' | 'faculty';
   status: string;
+}
+
+interface CourseAssignment {
+  facultyId: string;
+  courseId: string;
+  assignedRollNums: string[];
 }
 
 const AssignStudentsScreen = () => {
@@ -61,19 +60,20 @@ const AssignStudentsScreen = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [departments, setDepartments] = useState<string[]>([]);
   const [selectedDepartment, setSelectedDepartment] = useState<string>('');
-  const [selectedCourse, setSelectedCourse] = useState<string>('');
+  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [enrolledUsers, setEnrolledUsers] = useState<User[]>([]);
   const [selectedFaculty, setSelectedFaculty] = useState<string>('');
-  const [existingAssignments, setExistingAssignments] = useState<Assignment[]>([]);
+  const [courseAssignments, setCourseAssignments] = useState<CourseAssignment[]>([]);
+  const [selectAll, setSelectAll] = useState(false);
 
   const [loading, setLoading] = useState({
     initial: true,
     faculty: false,
     students: false,
     assignment: false,
+    assignments: false,
   });
-  const [assigning, setAssigning] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -98,15 +98,12 @@ const AssignStudentsScreen = () => {
           id: course.course_id,
           name: course.courseTitle,
           code: course.courseCode,
-          department: course.dept || course.department,
+          department: course.department,
           isEnabled: course.isActive,
         }));
         setCourses(coursesData.filter((course) => course.isEnabled));
       } catch (error: any) {
-        Alert.alert(
-          'Error',
-          error.response?.data?.message || 'Error loading initial data'
-        );
+        Alert.alert('Error', 'Error loading initial data');
       } finally {
         setLoading((prev) => ({ ...prev, initial: false }));
       }
@@ -136,7 +133,7 @@ const AssignStudentsScreen = () => {
         }
 
         const facultyData: Faculty[] = response.data.map((f: any) => ({
-          id: f.staffId || f.facultyId || f.id,
+          id: f.staffId,
           name: f.name,
           email: f.email,
           facultyId: f.facultyId,
@@ -144,10 +141,7 @@ const AssignStudentsScreen = () => {
         }));
         setFaculty(facultyData);
       } catch (error: any) {
-        Alert.alert(
-          'Error',
-          error.response?.data?.message || 'Error loading faculty data'
-        );
+        Alert.alert('Error', 'Error loading faculty data');
       } finally {
         setLoading((prev) => ({ ...prev, faculty: false }));
       }
@@ -156,6 +150,27 @@ const AssignStudentsScreen = () => {
     fetchFaculty();
   }, [selectedDepartment]);
 
+  const fetchCourseAssignments = async (courseId: string) => {
+    try {
+      setLoading((prev) => ({ ...prev, assignments: true }));
+      const response = await api.get(`/faculty-student-assigning/admin/course/${courseId}`);
+      
+      if (response.status === 200) {
+        const assignmentsData: CourseAssignment[] = response.data.map((assignment: any) => ({
+          facultyId: assignment.facultyId,
+          courseId: assignment.courseId,
+          assignedRollNums: assignment.assignedRollNums || []
+        }));
+        setCourseAssignments(assignmentsData);
+      }
+    } catch (error) {
+      console.warn("Could not fetch course assignments:", error);
+      setCourseAssignments([]);
+    } finally {
+      setLoading((prev) => ({ ...prev, assignments: false }));
+    }
+  };
+
   useEffect(() => {
     if (!selectedCourse) return;
 
@@ -163,7 +178,7 @@ const AssignStudentsScreen = () => {
       try {
         setLoading((prev) => ({ ...prev, students: true }));
         const [enrollmentResponse, studentsResponse] = await Promise.all([
-          api.get(`/course-enrollment/by-course/${selectedCourse}`),
+          api.get(`/course-enrollment/by-course/${selectedCourse.id}`),
           api.get('/profile/student'),
         ]);
 
@@ -197,11 +212,10 @@ const AssignStudentsScreen = () => {
           }));
 
         setEnrolledUsers(enrollmentData);
+
+        await fetchCourseAssignments(selectedCourse.id);
       } catch (error: any) {
-        Alert.alert(
-          'Error',
-          error.response?.data?.message || 'Error loading enrolled students'
-        );
+        Alert.alert('Error', 'Error loading enrolled students');
       } finally {
         setLoading((prev) => ({ ...prev, students: false }));
       }
@@ -211,11 +225,37 @@ const AssignStudentsScreen = () => {
   }, [selectedCourse]);
 
   const handleCourseSelect = (courseId: string) => {
-    setSelectedCourse(courseId);
+    const course = courses.find((c) => c.id === courseId);
+    setSelectedCourse(course || null);
     setSelectedUsers([]);
+    setSelectAll(false);
+    setCourseAssignments([]);
+  };
+
+  const isStudentAssigned = (studentId: string) => {
+    return courseAssignments.some(assignment => 
+      assignment.assignedRollNums.includes(studentId)
+    );
+  };
+
+  const getAssignedFacultyForStudent = (studentId: string) => {
+    const assignment = courseAssignments.find(assignment => 
+      assignment.assignedRollNums.includes(studentId)
+    );
+
+    if (assignment) {
+      const assignedFaculty = faculty.find(
+        (f) => f.id === assignment.facultyId
+      );
+      return assignedFaculty?.name || "Unknown Faculty";
+    }
+
+    return null;
   };
 
   const handleUserSelect = (userId: string) => {
+    if (isStudentAssigned(userId)) return;
+    
     setSelectedUsers((prev) =>
       prev.includes(userId)
         ? prev.filter((id) => id !== userId)
@@ -223,29 +263,17 @@ const AssignStudentsScreen = () => {
     );
   };
 
-  const checkExistingAssignments = (
-    studentIds: string[],
-    facultyId: string,
-    courseId: string
-  ) => {
-    return studentIds.some((studentId) =>
-      existingAssignments.some(
-        (assignment) =>
-          assignment.studentId === studentId && assignment.courseId === courseId
-      )
-    );
-  };
-
-  const getAssignedFacultyForStudent = (studentId: string, courseId: string) => {
-    const assignment = existingAssignments.find(
-      (a) => a.studentId === studentId && a.courseId === courseId
-    );
-
-    if (assignment) {
-      const assignedFaculty = faculty.find((f) => f.id === assignment.facultyId);
-      return assignedFaculty?.name || 'Assigned Faculty';
+  const handleSelectAll = () => {
+    const unassignedStudents = enrolledUsers.filter(
+      (student) => !isStudentAssigned(student.id)
+    ).map(student => student.id);
+    
+    if (selectAll) {
+      setSelectedUsers([]);
+    } else {
+      setSelectedUsers(unassignedStudents);
     }
-    return null;
+    setSelectAll(!selectAll);
   };
 
   const handleAssignStudents = async () => {
@@ -257,27 +285,25 @@ const AssignStudentsScreen = () => {
       return;
     }
 
-    const hasExistingAssignments = checkExistingAssignments(
-      selectedUsers,
-      selectedFaculty,
-      selectedCourse
+    // Check if any selected student is already assigned
+    const alreadyAssignedStudents = selectedUsers.filter(studentId => 
+      isStudentAssigned(studentId)
     );
 
-    if (hasExistingAssignments) {
+    if (alreadyAssignedStudents.length > 0) {
       Alert.alert(
         'Error',
-        'One or more selected students are already assigned to a faculty for this course'
+        `Cannot assign ${alreadyAssignedStudents.length} student(s) as they are already assigned to faculty`
       );
       return;
     }
 
     try {
       setLoading((prev) => ({ ...prev, assignment: true }));
-      setAssigning(true);
       const response = await api.post(
         '/faculty-student-assigning/admin/assign',
         {
-          courseId: selectedCourse,
+          courseId: selectedCourse.id,
           facultyId: selectedFaculty,
           rollNums: selectedUsers,
         }
@@ -288,16 +314,33 @@ const AssignStudentsScreen = () => {
         return;
       }
 
-      // Update existing assignments state
-      const newAssignments = selectedUsers.map((studentId) => ({
-        id: `${studentId}-${selectedFaculty}-${selectedCourse}`,
-        studentId,
-        facultyId: selectedFaculty,
-        courseId: selectedCourse,
-      }));
+      // Update local state with new assignments
+      const existingAssignment = courseAssignments.find(
+        a => a.facultyId === selectedFaculty && a.courseId === selectedCourse.id
+      );
 
-      setExistingAssignments([...existingAssignments, ...newAssignments]);
+      if (existingAssignment) {
+        setCourseAssignments(courseAssignments.map(assignment => 
+          assignment.facultyId === selectedFaculty && assignment.courseId === selectedCourse.id
+            ? {
+                ...assignment,
+                assignedRollNums: [...assignment.assignedRollNums, ...selectedUsers]
+              }
+            : assignment
+        ));
+      } else {
+        setCourseAssignments([
+          ...courseAssignments,
+          {
+            facultyId: selectedFaculty,
+            courseId: selectedCourse.id,
+            assignedRollNums: selectedUsers
+          }
+        ]);
+      }
+
       setSelectedUsers([]);
+      setSelectAll(false);
       Alert.alert('Success', `Successfully assigned ${selectedUsers.length} students`);
     } catch (error: any) {
       if (error.response) {
@@ -319,7 +362,6 @@ const AssignStudentsScreen = () => {
       }
     } finally {
       setLoading((prev) => ({ ...prev, assignment: false }));
-      setAssigning(false);
     }
   };
 
@@ -339,7 +381,7 @@ const AssignStudentsScreen = () => {
     >
       <View style={styles.selectionInfo}>
         <Text style={styles.nameText}>{item.name}</Text>
-        <Text style={styles.idText}>Faculty ID: {item.facultyId}</Text>
+        <Text style={styles.idText}>Faculty ID: {item.id}</Text>
         <Text style={styles.idText}>Department: {item.department}</Text>
       </View>
       {selectedFaculty === item.id && (
@@ -352,10 +394,8 @@ const AssignStudentsScreen = () => {
 
   const renderStudentItem = ({ item }: { item: User }) => {
     const studentData = students.find((s) => s.id === item.id);
-    const isAssigned = existingAssignments.some(
-      (a) => a.studentId === item.id && a.courseId === selectedCourse
-    );
-    const assignedFaculty = getAssignedFacultyForStudent(item.id, selectedCourse);
+    const isAssigned = isStudentAssigned(item.id);
+    const assignedFaculty = getAssignedFacultyForStudent(item.id);
 
     return (
       <TouchableOpacity
@@ -364,19 +404,26 @@ const AssignStudentsScreen = () => {
           selectedUsers.includes(item.id) && styles.selectedCard,
           isAssigned && styles.assignedCard,
         ]}
-        onPress={() => !isAssigned && handleUserSelect(item.id)}
+        onPress={() => handleUserSelect(item.id)}
         disabled={isAssigned}
       >
         <View style={styles.selectionInfo}>
           <Text style={styles.nameText}>{item.name}</Text>
           <Text style={styles.idText}>Roll: {item.id}</Text>
           <Text style={styles.idText}>Dept: {studentData?.department || 'N/A'}</Text>
-          {isAssigned && (
+          {isAssigned ? (
             <View style={styles.assignmentStatus}>
-              <Text style={styles.assignedText}>Assigned</Text>
-              {assignedFaculty && (
-                <Text style={styles.facultyText}>Faculty: {assignedFaculty}</Text>
-              )}
+              <View style={styles.assignedBadge}>
+                <Text style={styles.assignedBadgeText}>
+                  {assignedFaculty ? `Assigned to ${assignedFaculty}` : 'Already Assigned'}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.assignmentStatus}>
+              <View style={styles.enrolledBadge}>
+                <Text style={styles.enrolledBadgeText}>Enrolled</Text>
+              </View>
             </View>
           )}
         </View>
@@ -387,6 +434,10 @@ const AssignStudentsScreen = () => {
         )}
       </TouchableOpacity>
     );
+  };
+
+  const getUnassignedStudentsCount = () => {
+    return enrolledUsers.filter(student => !isStudentAssigned(student.id)).length;
   };
 
   return (
@@ -400,7 +451,7 @@ const AssignStudentsScreen = () => {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Department Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>1. Select Department</Text>
+            <Text style={styles.sectionHeader}>Select Department & Faculty</Text>
             {loading.initial ? (
               renderLoading()
             ) : (
@@ -430,7 +481,7 @@ const AssignStudentsScreen = () => {
           {/* Faculty Selection */}
           {selectedDepartment && (
             <View style={styles.section}>
-              <Text style={styles.sectionHeader}>2. Select Faculty</Text>
+              <Text style={styles.subHeader}>Available Faculty</Text>
               {loading.faculty ? (
                 renderLoading()
               ) : faculty.length > 0 ? (
@@ -449,13 +500,13 @@ const AssignStudentsScreen = () => {
 
           {/* Course Selection */}
           <View style={styles.section}>
-            <Text style={styles.sectionHeader}>3. Select Course</Text>
+            <Text style={styles.sectionHeader}>Select Course and Students</Text>
             {loading.initial ? (
               renderLoading()
             ) : (
               <View style={styles.pickerContainer}>
                 <Picker
-                  selectedValue={selectedCourse}
+                  selectedValue={selectedCourse?.id || ''}
                   onValueChange={handleCourseSelect}
                   style={styles.picker}
                 >
@@ -463,7 +514,7 @@ const AssignStudentsScreen = () => {
                   {courses.map((course) => (
                     <Picker.Item
                       key={course.id}
-                      label={`${course.code} - ${course.name}`}
+                      label={`${course.id} ${course.name}`}
                       value={course.id}
                     />
                   ))}
@@ -475,7 +526,27 @@ const AssignStudentsScreen = () => {
           {/* Students Selection */}
           {selectedCourse && (
             <View style={styles.section}>
-              <Text style={styles.sectionHeader}>4. Select Students</Text>
+              <View style={styles.studentsHeader}>
+                <Text style={styles.subHeader}>
+                  Enrolled Students
+                  {loading.assignments && (
+                    <Text style={styles.loadingText}> (Loading assignment status...)</Text>
+                  )}
+                </Text>
+                {enrolledUsers.length > 0 && getUnassignedStudentsCount() > 0 && (
+                  <TouchableOpacity 
+                    style={styles.selectAllButton}
+                    onPress={handleSelectAll}
+                  >
+                    <View style={styles.selectAllRow}>
+                      <View style={[styles.checkbox, selectAll && styles.checkedBox]}>
+                        {selectAll && <Check size={16} color={COLORS.white} />}
+                      </View>
+                      <Text style={styles.selectAllText}>Select All Unassigned</Text>
+                    </View>
+                  </TouchableOpacity>
+                )}
+              </View>
               {loading.students ? (
                 renderLoading()
               ) : enrolledUsers.length > 0 ? (
@@ -493,17 +564,17 @@ const AssignStudentsScreen = () => {
           )}
 
           {/* Summary Section */}
-          {selectedFaculty && selectedCourse && (
+          {selectedCourse && selectedUsers.length > 0 && (
             <View style={styles.summaryContainer}>
               <Text style={styles.sectionHeader}>Assignment Summary</Text>
               <Text style={styles.summaryText}>
-                Faculty: {faculty.find((f) => f.id === selectedFaculty)?.name || 'N/A'}
+                Course: {selectedCourse.id} {selectedCourse.name}
               </Text>
               <Text style={styles.summaryText}>
-                Course: {courses.find((c) => c.id === selectedCourse)?.name || 'N/A'}
+                Selected Faculty: {faculty.find((f) => f.id === selectedFaculty)?.name || 'No faculty selected'}
               </Text>
               <Text style={styles.summaryText}>
-                Selected Students: {selectedUsers.length}
+                Students to Assign: {selectedUsers.length}
               </Text>
             </View>
           )}
@@ -511,15 +582,18 @@ const AssignStudentsScreen = () => {
           {/* Submit Button */}
           {selectedFaculty && selectedCourse && selectedUsers.length > 0 && (
             <TouchableOpacity
-              style={[styles.assignButton, assigning && styles.disabledButton]}
+              style={[styles.assignButton, loading.assignment && styles.disabledButton]}
               onPress={handleAssignStudents}
-              disabled={assigning}
+              disabled={loading.assignment}
             >
-              {assigning ? (
-                <ActivityIndicator color={COLORS.white} />
+              {loading.assignment ? (
+                <View style={styles.loadingRow}>
+                  <ActivityIndicator color={COLORS.white} />
+                  <Text style={styles.assignButtonText}>Assigning Students...</Text>
+                </View>
               ) : (
                 <Text style={styles.assignButtonText}>
-                  Assign Selected Students
+                  Assign Selected Students to Faculty
                 </Text>
               )}
             </TouchableOpacity>
@@ -543,6 +617,12 @@ const styles = StyleSheet.create({
     fontFamily: FONT.bold,
     fontSize: SIZES.md,
     color: COLORS.primary,
+    marginBottom: SPACING.sm,
+  },
+  subHeader: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.sm,
+    color: COLORS.darkGray,
     marginBottom: SPACING.sm,
   },
   pickerContainer: {
@@ -598,15 +678,66 @@ const styles = StyleSheet.create({
   assignmentStatus: {
     marginTop: SPACING.xs,
   },
-  assignedText: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.sm,
+  assignedBadge: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  assignedBadgeText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.xs,
+    color: COLORS.white,
+  },
+  enrolledBadge: {
+    backgroundColor: '#10b981',
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  enrolledBadgeText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.xs,
+    color: COLORS.white,
+  },
+  studentsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: SPACING.sm,
+  },
+  loadingText: {
+    fontFamily: FONT.regular,
+    fontSize: SIZES.xs,
     color: COLORS.primary,
   },
-  facultyText: {
-    fontFamily: FONT.regular,
+  selectAllButton: {
+    padding: SPACING.xs,
+  },
+  selectAllRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: COLORS.gray,
+    marginRight: SPACING.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  checkedBox: {
+    backgroundColor: COLORS.primary,
+    borderColor: COLORS.primary,
+  },
+  selectAllText: {
+    fontFamily: FONT.medium,
     fontSize: SIZES.sm,
-    color: COLORS.gray,
+    color: COLORS.darkGray,
   },
   summaryContainer: {
     backgroundColor: COLORS.white,
@@ -636,6 +767,11 @@ const styles = StyleSheet.create({
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
     color: COLORS.white,
+  },
+  loadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.sm,
   },
   loadingContainer: {
     padding: SPACING.md,

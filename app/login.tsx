@@ -113,7 +113,7 @@ export default function LoginScreen() {
             />
           </View>
 
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          {error && <Text style={styles.errorText}>Invalid User Credentials</Text>}
 
           <TouchableOpacity
             style={styles.loginButton}

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Text,
-  View,  StyleSheet,
+  View,
+  StyleSheet,
   Image,
   TouchableOpacity,
   TextInput,
@@ -25,6 +26,7 @@ import { format } from 'date-fns';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import FileUploader, { FileInfo } from '@/components/FileUploader';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import StudentProgressReport from './courses/student_report';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -148,12 +150,7 @@ const ElegantPopup = ({
   return (
     <View style={styles.popupOverlay}>
       <TouchableWithoutFeedback onPress={handleBackdropPress}>
-        <Animated.View
-          style={[
-            styles.popupBackdrop,
-            { opacity: fadeAnim }
-          ]}
-        />
+        <Animated.View style={[styles.popupBackdrop, { opacity: fadeAnim }]} />
       </TouchableWithoutFeedback>
 
       <Animated.View
@@ -162,9 +159,9 @@ const ElegantPopup = ({
           animationType === 'slide'
             ? { transform: [{ translateY: slideAnim }] }
             : {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }]
-            }
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              },
         ]}
       >
         <View style={styles.popupHeader}>
@@ -221,7 +218,7 @@ const CustomInput = ({
       style={[
         styles.customInput,
         multiline && styles.multilineInput,
-        icon && styles.inputWithIcon
+        icon && styles.inputWithIcon,
       ]}
       placeholder={placeholder}
       placeholderTextColor="#999"
@@ -240,7 +237,7 @@ const CustomButton = ({
   onPress,
   variant = 'primary',
   disabled = false,
-  icon
+  icon,
 }: {
   title: string;
   onPress: () => void;
@@ -296,7 +293,9 @@ export default function Displaycourses() {
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<
+    string | null
+  >(null);
   const [assignmentForm, setAssignmentForm] = useState({
     title: '',
     description: '',
@@ -312,7 +311,7 @@ export default function Displaycourses() {
       fetchCourseDetails();
     }
   }, [id]);
-  
+
   // Separate effect to handle tab changes
   useEffect(() => {
     if (id && activeIndex === 1) {
@@ -325,7 +324,9 @@ export default function Displaycourses() {
       setLoading(true);
       const courseResponse = await api.get(`/course/detailsbyId?id=${id}`);
       setCourse(courseResponse.data[0]);
-      const sectionsResponse = await api.get(`/course/section/details?id=${id}`);
+      const sectionsResponse = await api.get(
+        `/course/section/details?id=${id}`
+      );
       setSections(sectionsResponse.data);
     } catch (error) {
       setCourse(null);
@@ -333,7 +334,6 @@ export default function Displaycourses() {
       setLoading(false);
     }
   };
-  
 
   const fetchAssignments = async () => {
     setLoading(true);
@@ -372,7 +372,10 @@ export default function Displaycourses() {
       formData.append('courseFaculty', course.instructorName);
       formData.append('title', assignmentForm.title);
       formData.append('description', assignmentForm.description || '');
-      formData.append('dueDate', format(assignmentForm.dueDate, "yyyy-MM-dd'T'HH:mm:ss"));
+      formData.append(
+        'dueDate',
+        format(assignmentForm.dueDate, "yyyy-MM-dd'T'HH:mm:ss")
+      );
       formData.append('resourceLink', assignmentForm.link || '');
 
       if (files.length > 0) {
@@ -401,7 +404,8 @@ export default function Displaycourses() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
         'Error',
-        error.response?.data?.message || 'Failed to create assignment. Please try again.'
+        error.response?.data?.message ||
+          'Failed to create assignment. Please try again.'
       );
     } finally {
       setLoading(false);
@@ -439,7 +443,10 @@ export default function Displaycourses() {
       formData.append('courseFaculty', course.instructorName);
       formData.append('title', assignmentForm.title);
       formData.append('description', assignmentForm.description || '');
-      formData.append('dueDate', format(assignmentForm.dueDate, "yyyy-MM-dd'T'HH:mm:ss"));
+      formData.append(
+        'dueDate',
+        format(assignmentForm.dueDate, "yyyy-MM-dd'T'HH:mm:ss")
+      );
       formData.append('resourceLink', assignmentForm.link || '');
 
       if (files.length > 0 && files[0].uri) {
@@ -464,11 +471,15 @@ export default function Displaycourses() {
       setShowAssignmentPopup(false);
       resetAssignmentForm();
     } catch (error: any) {
-      console.error('Update assignment error:', error.response?.data || error.message);
+      console.error(
+        'Update assignment error:',
+        error.response?.data || error.message
+      );
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
         'Error',
-        error.response?.data?.message || 'Failed to update assignment. Please try again.'
+        error.response?.data?.message ||
+          'Failed to update assignment. Please try again.'
       );
     } finally {
       setLoading(false);
@@ -491,14 +502,17 @@ export default function Displaycourses() {
             try {
               setLoading(true);
               await api.delete(`/assignments?assignmentId=${assignmentId}`);
-              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              Haptics.notificationAsync(
+                Haptics.NotificationFeedbackType.Success
+              );
               ToastAndroid.show('Assignment deleted!', ToastAndroid.SHORT);
               await fetchAssignments();
             } catch (error: any) {
               Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
               Alert.alert(
                 'Error',
-                error.response?.data?.message || 'Failed to delete assignment. Please try again.'
+                error.response?.data?.message ||
+                  'Failed to delete assignment. Please try again.'
               );
             } finally {
               setLoading(false);
@@ -512,7 +526,9 @@ export default function Displaycourses() {
   const handleEditAssignment = async (assignmentId: string) => {
     try {
       setLoading(true);
-      const response = await api.get(`/assignments/id?assignmentId=${assignmentId}`);
+      const response = await api.get(
+        `/assignments/id?assignmentId=${assignmentId}`
+      );
       const assignment = response.data.assignment;
 
       setAssignmentForm({
@@ -523,11 +539,13 @@ export default function Displaycourses() {
       });
 
       if (assignment.fileName) {
-        setFiles([{
-          uri: '', // URI will be empty as we don't have the actual file
-          name: assignment.fileName,
-          type: 'application/octet-stream',
-        }]);
+        setFiles([
+          {
+            uri: '', // URI will be empty as we don't have the actual file
+            name: assignment.fileName,
+            type: 'application/octet-stream',
+          },
+        ]);
       } else {
         setFiles([]);
       }
@@ -559,13 +577,12 @@ export default function Displaycourses() {
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
-  setShowDatePicker(false);
-  if (selectedDate) {
-    
-    selectedDate.setHours(23, 59, 0, 0); 
-    setAssignmentForm({ ...assignmentForm, dueDate: selectedDate });
-  }
-};
+    setShowDatePicker(false);
+    if (selectedDate) {
+      selectedDate.setHours(23, 59, 0, 0);
+      setAssignmentForm({ ...assignmentForm, dueDate: selectedDate });
+    }
+  };
 
   const handleTabPress = (index: number) => {
     Haptics.selectionAsync();
@@ -591,10 +608,10 @@ export default function Displaycourses() {
     try {
       setLoading(true);
       await api.post('/course/section/add', {
-      course: { course_id: id },
-      sectionTitle,
-      sectionDesc,
-    });
+        course: { course_id: id },
+        sectionTitle,
+        sectionDesc,
+      });
       await fetchCourseDetails();
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       ToastAndroid.show('Section created!', ToastAndroid.SHORT);
@@ -605,7 +622,8 @@ export default function Displaycourses() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert(
         'Error',
-        error.response?.data?.message || 'Failed to create section. Please try again.'
+        error.response?.data?.message ||
+          'Failed to create section. Please try again.'
       );
     } finally {
       setLoading(false);
@@ -616,7 +634,7 @@ export default function Displaycourses() {
     if (activeIndex === 0) {
       return sections;
     } else if (activeIndex === 1) {
-      return assignments.filter(a => 
+      return assignments.filter((a) =>
         a.title.toLowerCase().includes(searchQuery.toLowerCase())
       );
     }
@@ -632,8 +650,8 @@ export default function Displaycourses() {
             styles.sectionCard,
             {
               opacity: 1,
-              transform: [{ translateY: 0 }]
-            }
+              transform: [{ translateY: 0 }],
+            },
           ]}
         >
           <View style={styles.sectionHeader}>
@@ -659,7 +677,9 @@ export default function Displaycourses() {
         <TouchableOpacity
           style={styles.assignmentCard}
           activeOpacity={0.85}
-          onPress={() => router.push(`/faculty/assignments/grade?id=${item.assignmentId}`)}
+          onPress={() =>
+            router.push(`/faculty/assignments/grade?id=${item.assignmentId}`)
+          }
         >
           <View style={styles.assignmentHeader}>
             <Text style={styles.assignmentTitle}>{item.title}</Text>
@@ -679,9 +699,7 @@ export default function Displaycourses() {
             </View>
           </View>
           {item.description && (
-            <Text style={styles.assignmentDescription}>
-              {item.description}
-            </Text>
+            <Text style={styles.assignmentDescription}>{item.description}</Text>
           )}
           {item.dueDate && (
             <View style={styles.dueDateContainer}>
@@ -700,7 +718,7 @@ export default function Displaycourses() {
   // Header component for the FlatList
   const ListHeader = () => {
     if (!course) return null;
-    
+
     return (
       <>
         <View style={styles.courseCard}>
@@ -719,10 +737,12 @@ export default function Displaycourses() {
                 <Ionicons name="school-outline" size={16} color="#007BFF" />
                 <Text style={styles.metaText}>{course.credit} Credits</Text>
               </View>
-              <View style={[
-                styles.statusBadge,
-                { backgroundColor: course.isActive ? '#28a745' : '#dc3545' }
-              ]}>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: course.isActive ? '#28a745' : '#dc3545' },
+                ]}
+              >
                 <Text style={styles.statusText}>
                   {course.isActive ? 'Active' : 'Inactive'}
                 </Text>
@@ -740,10 +760,12 @@ export default function Displaycourses() {
               onPress={() => handleTabPress(idx)}
               activeOpacity={0.7}
             >
-              <Text style={[
-                styles.tabText,
-                activeIndex === idx && styles.activeTabText
-              ]}>
+              <Text
+                style={[
+                  styles.tabText,
+                  activeIndex === idx && styles.activeTabText,
+                ]}
+              >
                 {item}
               </Text>
               {activeIndex === idx && <View style={styles.tabIndicator} />}
@@ -754,7 +776,12 @@ export default function Displaycourses() {
         {/* Search bar for assignments tab */}
         {activeIndex === 1 && (
           <View style={styles.searchContainer}>
-            <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+            <Ionicons
+              name="search"
+              size={20}
+              color="#999"
+              style={styles.searchIcon}
+            />
             <TextInput
               style={styles.searchInput}
               placeholder="Search assignments..."
@@ -765,25 +792,34 @@ export default function Displaycourses() {
           </View>
         )}
 
+        {activeIndex === 2 && (
+          <View style={styles.tabContent}>
+            <StudentProgressReport courseId={id} />
+          </View>
+        )}
+
         {/* Empty state handling */}
-        {((activeIndex === 0 && sections.length === 0) || 
+        {((activeIndex === 0 && sections.length === 0) ||
           (activeIndex === 1 && assignments.length === 0)) && (
           <View style={styles.emptyState}>
             <View style={styles.emptyIconContainer}>
-              <Ionicons 
-                name={activeIndex === 0 ? "library-outline" : "document-text-outline"} 
-                size={60} 
-                color="#007BFF" 
+              <Ionicons
+                name={
+                  activeIndex === 0
+                    ? 'library-outline'
+                    : 'document-text-outline'
+                }
+                size={60}
+                color="#007BFF"
               />
             </View>
             <Text style={styles.emptyStateTitle}>
-              {activeIndex === 0 ? "No Sections Yet" : "No Assignments Yet"}
+              {activeIndex === 0 ? 'No Sections Yet' : 'No Assignments Yet'}
             </Text>
             <Text style={styles.emptyStateText}>
-              {activeIndex === 0 
-                ? "Create your first section to organize course content and get started."
-                : "Create your first assignment to engage students with coursework."
-              }
+              {activeIndex === 0
+                ? 'Create your first section to organize course content and get started.'
+                : 'Create your first assignment to engage students with coursework.'}
             </Text>
           </View>
         )}
@@ -881,21 +917,25 @@ export default function Displaycourses() {
           setShowAssignmentPopup(false);
           resetAssignmentForm();
         }}
-        title={isEditing ? "Edit Assignment" : "Create New Assignment"}
+        title={isEditing ? 'Edit Assignment' : 'Create New Assignment'}
         animationType="slide"
       >
         <ScrollView showsVerticalScrollIndicator={false}>
           <CustomInput
             placeholder="Enter assignment title"
             value={assignmentForm.title}
-            onChangeText={text => setAssignmentForm({ ...assignmentForm, title: text })}
+            onChangeText={(text) =>
+              setAssignmentForm({ ...assignmentForm, title: text })
+            }
             icon="clipboard-outline"
           />
 
           <CustomInput
             placeholder="Enter assignment description (optional)"
             value={assignmentForm.description}
-            onChangeText={text => setAssignmentForm({ ...assignmentForm, description: text })}
+            onChangeText={(text) =>
+              setAssignmentForm({ ...assignmentForm, description: text })
+            }
             multiline={true}
             icon="document-text-outline"
           />
@@ -903,17 +943,32 @@ export default function Displaycourses() {
           <CustomInput
             placeholder="Resource link (optional)"
             value={assignmentForm.link}
-            onChangeText={text => setAssignmentForm({ ...assignmentForm, link: text })}
+            onChangeText={(text) =>
+              setAssignmentForm({ ...assignmentForm, link: text })
+            }
             icon="link-outline"
           />
 
           <TouchableOpacity
-            style={[styles.customInput, { flexDirection: 'row', alignItems: 'center', marginBottom: 20 }]}
+            style={[
+              styles.customInput,
+              { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+            ]}
             onPress={() => setShowDatePicker(true)}
             activeOpacity={0.7}
           >
-            <Ionicons name="calendar-outline" size={20} color="#007BFF" style={{ marginRight: 10 }} />
-            <Text style={{ color: assignmentForm.dueDate ? '#1a1a1a' : '#999', fontSize: 16 }}>
+            <Ionicons
+              name="calendar-outline"
+              size={20}
+              color="#007BFF"
+              style={{ marginRight: 10 }}
+            />
+            <Text
+              style={{
+                color: assignmentForm.dueDate ? '#1a1a1a' : '#999',
+                fontSize: 16,
+              }}
+            >
               {assignmentForm.dueDate
                 ? format(assignmentForm.dueDate, 'MMM dd, yyyy HH:mm')
                 : 'Select due date'}
@@ -944,11 +999,11 @@ export default function Displaycourses() {
               icon="close-outline"
             />
             <CustomButton
-              title={isEditing ? "Save Changes" : "Create Assignment"}
+              title={isEditing ? 'Save Changes' : 'Create Assignment'}
               onPress={isEditing ? updateAssignment : addAssignment}
               variant="primary"
               disabled={loading}
-              icon={isEditing ? "save-outline" : "add-outline"}
+              icon={isEditing ? 'save-outline' : 'add-outline'}
             />
           </View>
         </ScrollView>
