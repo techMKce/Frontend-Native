@@ -19,6 +19,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { format } from 'date-fns';
 import { useAuth } from '@/hooks/useAuth';
 import StudentProgressDisplay from './StudentprogressDisplay';
+import StudentSectionCard from './courses/student_section_card'; // We'll create this file
 
 const { height: screenHeight } = Dimensions.get('window');
 
@@ -59,6 +60,8 @@ export default function Displaycourses() {
   const [loading, setLoading] = useState(true);
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [enrollmentLoading, setEnrollmentLoading] = useState(false);
   const { profile } = useAuth();
   const studentId = profile?.profile?.id;
   const { courseId } = useLocalSearchParams();
@@ -67,8 +70,9 @@ export default function Displaycourses() {
   useEffect(() => {
     if (id) {
       fetchCourseDetails();
+      checkEnrollmentStatus();
     }
-  }, [id]);
+  }, [id, studentId]);
 
   useEffect(() => {
     if (id && activeIndex === 1) {
@@ -109,6 +113,52 @@ export default function Displaycourses() {
 
   const handleViewSubmission = (assignmentId: string) => {
     router.push({ pathname: '/student/assignments/submit', params: { assignmentId } });
+  };
+
+  const checkEnrollmentStatus = async () => {
+    if (!studentId || !id) return;
+    
+    try {
+      // Using correct endpoint format
+      const response = await api.get(`/course-enrollment/check/${id}/${studentId}`);
+      setIsEnrolled(response.data === true);
+    } catch (error) {
+      console.error('Failed to check enrollment status:', error);
+      setIsEnrolled(false);
+    }
+  };
+
+  const handleEnroll = async () => {
+    if (!course?.course_id || !studentId) {
+      Alert.alert('Error', 'Course or profile information is missing.');
+      return;
+    }
+
+    try {
+      setEnrollmentLoading(true);
+      const response = await api.post('/course-enrollment', {
+        courseId: course.course_id,
+        rollNum: studentId,
+      });
+      
+      if (response.status === 200 || response.status === 201) {
+        setIsEnrolled(true);
+        Alert.alert('Success', 'Course enrolled successfully!');
+      } else {
+        throw new Error('Enrollment failed');
+      }
+    } catch (error) {
+      console.error('Enrollment error:', error);
+      Alert.alert('Error', 'Failed to enroll in course.');
+    } finally {
+      setEnrollmentLoading(false);
+    }
+  };
+
+  const refreshSections = () => {
+    if (id) {
+      fetchCourseDetails();
+    }
   };
 
   return (
@@ -158,35 +208,32 @@ export default function Displaycourses() {
             </View>
           </View>
 
-          {/* Enroll Button */}
-          <TouchableOpacity
-            style={styles.enrollButton}
-            onPress={async () => {
-              if (course?.course_id && profile?.profile?.id) {
-                try {
-                  const response = await api.post('/course-enrollment', {
-                    courseId: course.course_id,
-                    rollNum: profile.profile.id,
-                  });
-                  Alert.alert('Success', 'Course enrolled successfully!');
-                } catch (error) {
-                  Alert.alert('Error', 'Failed to enroll in course.');
-                }
-              } else {
-                Alert.alert(
-                  'Error',
-                  'Course or profile information is missing.'
-                );
-              }
-            }}
-          >
-            <Text style={styles.enrollButtonText}>Enroll</Text>
-          </TouchableOpacity>
+          {/* Enroll Button - Only show if not enrolled */}
+          {!isEnrolled ? (
+            <TouchableOpacity
+              style={[styles.enrollButton, enrollmentLoading && styles.enrollButtonLoading]}
+              onPress={handleEnroll}
+              disabled={enrollmentLoading}
+            >
+              {enrollmentLoading ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.enrollButtonText}>Enroll</Text>
+              )}
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.enrolledBadge}>
+              <FontAwesome name="check-circle" size={18} color="#4CAF50" />
+              <Text style={styles.enrolledText}>Enrolled</Text>
+            </View>
+          )}
 
-          {/* Progress Bar */}
-          <View style={styles.progressBarContainer}>
-            <StudentProgressDisplay courseId={id} studentId={studentId || ''} />
-          </View>
+          {/* Progress Bar - Only show if enrolled */}
+          {isEnrolled && (
+            <View style={styles.progressBarContainer}>
+              <StudentProgressDisplay courseId={id} studentId={studentId || ''} />
+            </View>
+          )}
 
           {/* Tab Bar */}
           <View style={styles.tabBar}>
@@ -210,17 +257,23 @@ export default function Displaycourses() {
             ))}
           </View>
 
-          {/* Sections Tab */}
+          {/* Sections Tab - Only show content if enrolled */}
           {activeIndex === 0 && (
             <View style={styles.tabContent}>
-              {sections.length === 0 ? (
+              {!isEnrolled ? (
+                <View style={styles.emptyState}>
+                  <View style={styles.emptyIconContainer}>
+                    <Ionicons name="lock-closed-outline" size={60} color="#007BFF" />
+                  </View>
+                  <Text style={styles.emptyStateTitle}>Course Locked</Text>
+                  <Text style={styles.emptyStateText}>
+                    Enroll in this course to access its content
+                  </Text>
+                </View>
+              ) : sections.length === 0 ? (
                 <View style={styles.emptyState}>
                   <View className="emptyIconContainer">
-                    <Ionicons
-                      name="library-outline"
-                      size={60}
-                      color="#007BFF"
-                    />
+                    <Ionicons name="library-outline" size={60} color="#007BFF" />
                   </View>
                   <Text style={styles.emptyStateTitle}>No Sections Yet</Text>
                   <Text style={styles.emptyStateText}>
@@ -229,24 +282,16 @@ export default function Displaycourses() {
                 </View>
               ) : (
                 <View style={styles.sectionList}>
-                  {sections.map((section, index) => (
-                    <View key={section.section_id} style={styles.sectionCard}>
-                      <View style={styles.sectionHeader}>
-                        <View style={styles.sectionNumber}>
-                          <Text style={styles.sectionNumberText}>
-                            {index + 1}
-                          </Text>
-                        </View>
-                        <View style={styles.sectionContent}>
-                          <Text style={styles.sectionTitle}>
-                            {section.sectionTitle}
-                          </Text>
-                          <Text style={styles.sectionDesc}>
-                            {section.sectionDesc}
-                          </Text>
-                        </View>
-                      </View>
-                    </View>
+                  {sections.map((section) => (
+                    <StudentSectionCard
+                      key={section.section_id}
+                      section_id={parseInt(section.section_id)}
+                      course_id={parseInt(id)}
+                      title={section.sectionTitle}
+                      desc={section.sectionDesc}
+                      onrefresh={refreshSections}
+                      viewOnly={true}
+                    />
                   ))}
                 </View>
               )}
@@ -439,11 +484,35 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     marginTop: 10,
     marginBottom: 10,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+  enrollButtonLoading: {
+    backgroundColor: '#8BC34A',
   },
   enrollButtonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  enrolledBadge: {
+    flexDirection: 'row',
+    backgroundColor: '#E8F5E9',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#4CAF50',
+  },
+  enrolledText: {
+    color: '#4CAF50',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginLeft: 8,
   },
   progressBarContainer: {
     marginTop: 20,

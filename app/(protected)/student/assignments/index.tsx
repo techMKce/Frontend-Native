@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, FlatList, TouchableOpacity, Alert } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import { Search, Calendar, CircleAlert as AlertCircle } from 'lucide-react-native';
 import { router, useFocusEffect } from 'expo-router';
 import api from '@/service/api';
+import { useAuth } from '@/hooks/useAuth';
 
 // Define interfaces (unchanged)
 interface Assignment {
@@ -38,38 +39,80 @@ interface Grading {
 }
 
 export default function StudentAssignmentsScreen() {
+  const { profile } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [submissions, setSubmissions] = useState<{ [key: string]: Submission | null }>({});
   const [gradings, setGradings] = useState<{ [key: string]: Grading | null }>({});
+  const [submissionStatus, setSubmissionStatus] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [enrolledCourses, setEnrolledCourses] = useState<string[]>([]);
 
-  const studentRollNumber = 'STU123';
+  const studentRollNumber = profile?.profile.id || 'STU123';
+
+  const fetchEnrollments = async () => {
+    try {
+      if (!studentRollNumber) return;
+      // Using correct endpoint format
+      const response = await api.get(`/course-enrollment/by-student/${studentRollNumber}`);
+      setEnrolledCourses(response.data || []);
+    } catch (error) {
+      console.error('Error fetching enrollments:', error);
+      setEnrolledCourses([]);
+    }
+  };
 
   const fetchAssignmentsAndData = useCallback(async () => {
     try {
       setLoading(true);
-
+      
+      // Fetch enrollments first
+      await fetchEnrollments();
+      
       // Fetch all assignments using Axios
       const assignmentResponse = await api.get('/assignments/all');
       const fetchedAssignments: Assignment[] = assignmentResponse.data.assignments || [];
-      setAssignments(fetchedAssignments);
+      
+      // Only show assignments for courses the student is enrolled in
+      const filteredAssignments = fetchedAssignments.filter(assignment => 
+        enrolledCourses.includes(assignment.courseId)
+      );
+      
+      setAssignments(filteredAssignments);
 
       // Fetch submissions and gradings
       const submissionMap: { [key: string]: Submission | null } = {};
       const gradingMap: { [key: string]: Grading | null } = {};
+      const statusMap: { [key: string]: string } = {};
 
-      for (const assignment of fetchedAssignments) {
+      for (const assignment of filteredAssignments) {
         try {
           // Fetch submissions using Axios
           const submissionResponse = await api.get(`/submissions?assignmentId=${assignment.assignmentId}`);
-          const studentSubmission = submissionResponse.data.submissions.find(
-            (sub: Submission) => sub.studentRollNumber === studentRollNumber
+          
+          // Check if there's any submission for this student
+          const allSubmissions = submissionResponse.data.submissions || [];
+          const studentSubmission = allSubmissions.find(
+            (sub: any) => sub.studentRollNumber === studentRollNumber
           );
+          
           submissionMap[assignment.assignmentId] = studentSubmission || null;
+          
+          // Check for submission status - explicitly check for 'Rejected' status
+          if (studentSubmission) {
+            if (studentSubmission.status === 'Rejected') {
+              statusMap[assignment.assignmentId] = 'rejected';
+            } else {
+              statusMap[assignment.assignmentId] = 'submitted';
+            }
+          } else {
+            statusMap[assignment.assignmentId] = 'pending';
+          }
         } catch (submissionError) {
+          console.error(`Error fetching submissions for assignment ${assignment.assignmentId}:`, submissionError);
           submissionMap[assignment.assignmentId] = null;
+          statusMap[assignment.assignmentId] = 'pending';
         }
 
         try {
@@ -86,13 +129,14 @@ export default function StudentAssignmentsScreen() {
 
       setSubmissions(submissionMap);
       setGradings(gradingMap);
+      setSubmissionStatus(statusMap);
     } catch (err: any) {
       console.error('Error fetching data:', err);
       setError(err.message || 'An error occurred while fetching data');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [studentRollNumber, enrolledCourses.length]);
 
   // Initial data fetch
   useEffect(() => {
@@ -114,11 +158,21 @@ export default function StudentAssignmentsScreen() {
 
   const getAssignmentStatus = (assignment: Assignment) => {
     const grading = gradings[assignment.assignmentId];
+    const submission = submissions[assignment.assignmentId];
+    const status = submissionStatus[assignment.assignmentId];
+    
+    // First check if there's a grade
     if (grading && grading.grade) {
       return 'graded';
     }
-    const hasSubmission = submissions[assignment.assignmentId] !== null;
-    return hasSubmission ? 'submitted' : 'pending';
+    
+    // Check status from the status map first - this is the most reliable source
+    if (status) {
+      return status;
+    }
+    
+    // Default to checking submission existence
+    return submission ? 'submitted' : 'pending';
   };
 
   const getStatusColor = (status: string) => {
@@ -127,6 +181,8 @@ export default function StudentAssignmentsScreen() {
         return COLORS.darkGray;
       case 'submitted':
         return COLORS.success;
+      case 'rejected':
+        return COLORS.error;
       case 'graded':
         return COLORS.primary;
       default:
@@ -140,6 +196,8 @@ export default function StudentAssignmentsScreen() {
         return 'Submit';
       case 'submitted':
         return 'Resubmit';
+      case 'rejected':
+        return 'Resubmit';
       case 'graded':
         return 'Graded';
       default:
@@ -148,31 +206,60 @@ export default function StudentAssignmentsScreen() {
   };
 
   const handleAssignmentAction = (assignment: Assignment) => {
+    // First check if student is enrolled in this course
+    if (!enrolledCourses.includes(assignment.courseId)) {
+      Alert.alert(
+        'Enrollment Required', 
+        'You need to be enrolled in this course to access assignments.',
+        [
+          { text: 'OK' }
+        ]
+      );
+      return;
+    }
+
     const status = getAssignmentStatus(assignment);
     const isOverdue = new Date(assignment.dueDate) < new Date();
+    
+    console.log("Handling assignment:", assignment.assignmentId, "Status:", status);
 
-    if (status === 'submitted') {
-      router.push({
-        pathname: '/assignments/resubmit',
-        params: { id: assignment.assignmentId },
-      });
-    } else if (status === 'pending') {
-      if (isOverdue) {
+    switch(status) {
+      case 'rejected':
         router.push({
-          pathname: '/assignments/overdue',
-          params: {
-            id: assignment.assignmentId,
-            title: assignment.title,
-            courseId: assignment.courseId,
-            dueDate: assignment.dueDate,
-          },
+          pathname: '/student/assignments/resubmit',
+          params: { id: assignment.assignmentId }
         });
-      } else {
+        break;
+        
+      case 'submitted':
         router.push({
-          pathname: '/assignments/submit',
-          params: { id: assignment.assignmentId },
+          pathname: '/student/assignments/resubmit',
+          params: { id: assignment.assignmentId }
         });
-      }
+        break;
+        
+      case 'pending':
+        if (isOverdue) {
+          router.push({
+            pathname: '/student/assignments/overdue',
+            params: { id: assignment.assignmentId }
+          });
+        } else {
+          router.push({
+            pathname: '/student/assignments/submit',
+            params: { id: assignment.assignmentId }
+          });
+        }
+        break;
+        
+      case 'graded':
+        // Maybe show grade details in the future?
+        Alert.alert('Graded', 'This assignment has been graded.');
+        break;
+        
+      default:
+        console.warn("Unhandled status:", status);
+        break;
     }
   };
 
@@ -181,6 +268,7 @@ export default function StudentAssignmentsScreen() {
     const grading = gradings[item.assignmentId];
     const displayGrade = grading?.grade || item.grade;
     const displayFeedback = grading?.feedback || item.feedback;
+    const isRejected = status === 'rejected';
 
     return (
       <View style={styles.assignmentCard}>
@@ -192,6 +280,11 @@ export default function StudentAssignmentsScreen() {
           {displayGrade && (
             <View style={styles.gradeBadge}>
               <Text style={styles.gradeText}>{displayGrade}</Text>
+            </View>
+          )}
+          {isRejected && (
+            <View style={styles.rejectedBadge}>
+              <Text style={styles.rejectedText}>Rejected</Text>
             </View>
           )}
         </View>
@@ -417,5 +510,16 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     textAlign: 'center',
     marginTop: SPACING.lg,
+  },
+  rejectedBadge: {
+    backgroundColor: `${COLORS.error}20`,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+    borderRadius: 12,
+  },
+  rejectedText: {
+    fontFamily: FONT.semiBold,
+    fontSize: SIZES.sm,
+    color: COLORS.error,
   },
 });

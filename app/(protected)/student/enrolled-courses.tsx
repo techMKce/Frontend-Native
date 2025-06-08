@@ -60,7 +60,8 @@ const Courses = () => {
   const fetchEnrolledCourses = async () => {
     if (!studentId) return;
     try {
-      const response = await api.get(`course-enrollment/by-student/${studentId}`);
+      // Using correct endpoint format
+      const response = await api.get(`/course-enrollment/by-student/${studentId}`);
       const data: Course[] = response.data;
       setEnrolledCourses(data);
       console.log(enrolledCourses)

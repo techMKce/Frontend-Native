@@ -9,12 +9,18 @@ import {
   Alert,
   ActivityIndicator,
   Animated,
+  Platform,
+  Linking,
 } from 'react-native';
 import { Button, Card, IconButton } from 'react-native-paper';
 import { FontAwesome5, MaterialIcons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useLocalSearchParams } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as MediaLibrary from 'expo-media-library';
 import api from '@/service/api';
 import Header from '@/components/shared/Header';
 
@@ -36,6 +42,8 @@ const GradeSubmissionScreen = () => {
   const [feedback, setFeedback] = useState('');
   const [loading, setLoading] = useState(true);
   const [rejecting, setRejecting] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
   const navigation = useNavigation();
 
   const statusFadeAnim = useRef(new Animated.Value(1)).current;
@@ -167,6 +175,262 @@ const GradeSubmissionScreen = () => {
     );
   };
 
+  // Helper function to convert blob to base64
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        // Remove the data URL prefix (data:application/pdf;base64,)
+        const base64Data = base64String.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Helper function to get MIME type from file extension
+  const getMimeType = (uri: string): string => {
+    const extension = uri.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'ppt':
+      case 'pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      case 'xls':
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      default:
+        return 'application/octet-stream';
+    }
+  };
+
+  const openFile = async (fileUri: string, permanent: boolean = false) => {
+    try {
+      const mimeType = getMimeType(fileUri);
+      
+      // For Android, try Intent first (most direct method)
+      if (Platform.OS === 'android') {
+        try {
+          const contentUri = await FileSystem.getContentUriAsync(fileUri);
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: contentUri,
+            flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+            type: mimeType,
+          });
+          return;
+        } catch (error) {
+          console.log('Could not open with intent, trying alternatives:', error);
+        }
+      }
+      
+      // For iOS
+      if (Platform.OS === 'ios') {
+        // First try direct linking (works for local files on iOS)
+        try {
+          await Linking.openURL(fileUri);
+          return;
+        } catch (error) {
+          console.log('Could not open with Linking, trying WebBrowser:', error);
+        }
+        
+        // Then try WebBrowser (only works well with PDFs)
+        if (mimeType === 'application/pdf') {
+          try {
+            await WebBrowser.openBrowserAsync(fileUri, {
+              presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+              showTitle: true,
+              toolbarColor: '#1e3a8a',
+              controlsColor: '#fff',
+              enableBarCollapsing: true,
+            });
+            return;
+          } catch (error) {
+            console.log('Could not open with WebBrowser, will try to share:', error);
+          }
+        } else {
+          // For non-PDF files, go straight to sharing
+          await shareFile(fileUri);
+          return;
+        }
+      }
+      
+      // Last resort: try to share directly instead
+      await shareFile(fileUri);
+      
+      // If the file is not meant to be permanent, clean it up after a delay
+      if (!permanent) {
+        setTimeout(async () => {
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(fileUri);
+            if (fileInfo.exists && !permanent) {
+              await FileSystem.deleteAsync(fileUri, { idempotent: true });
+              console.log('Temporary file cleaned up:', fileUri);
+            }
+          } catch (cleanupError) {
+            console.log('Failed to clean up temporary file:', cleanupError);
+          }
+        }, 300000); // Clean up after 5 minutes
+      }
+    } catch (error) {
+      console.error('Failed to open file:', error);
+
+      // Fallback: try to share the file instead
+      Alert.alert(
+        'Cannot Open File',
+        'Unable to open file directly. Would you like to save and share it with another app?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Save & Share', onPress: () => saveAndShareFile(fileUri) },
+        ]
+      );
+    }
+  };
+
+  const saveAndShareFile = async (fileUri: string) => {
+    try {
+      if (!permissionResponse?.granted) {
+        const permission = await requestPermission();
+        if (!permission.granted) {
+          Alert.alert('Permission Required', 'Storage permission is needed to save files.');
+          return;
+        }
+      }
+      
+      // Save to media library first
+      const asset = await MediaLibrary.createAssetAsync(fileUri);
+      const album = await MediaLibrary.getAlbumAsync('Download');
+      if (album) {
+        await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+      } else {
+        await MediaLibrary.createAlbumAsync('Download', asset, false);
+      }
+      
+      // Then share
+      await shareFile(fileUri);
+      Alert.alert('Success', 'File has been saved to your downloads folder');
+    } catch (error) {
+      console.error('Failed to save file:', error);
+      Alert.alert('Error', 'Failed to save file to downloads');
+      
+      // Try sharing anyway
+      shareFile(fileUri);
+    }
+  };
+
+  const shareFile = async (fileUri: string) => {
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: getMimeType(fileUri),
+          dialogTitle: 'Share File',
+          UTI: 'public.item',
+        });
+      } else {
+        Alert.alert('Error', 'Sharing is not available on this device');
+      }
+    } catch (error) {
+      console.error('Error sharing file:', error);
+      Alert.alert('Error', 'Failed to share file');
+    }
+  };
+
+  const handleDownloadSubmission = async () => {
+    if (!submissionId) {
+      Alert.alert('Error', 'Submission ID is missing.');
+      return;
+    }
+
+    try {
+      setDownloading(true);
+      
+      // Default extension is pdf, but we'll try to extract it if possible
+      const fileName = `submission_${submissionId}.pdf`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      
+      // Check if file already exists
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (fileInfo.exists && fileInfo.size > 0) {
+        // File exists, ask user what to do
+        Alert.alert('File Ready', 'What would you like to do?', [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'View',
+            onPress: () => openFile(fileUri, false),
+          },
+          {
+            text: 'Save & Share',
+            onPress: () => saveAndShareFile(fileUri),
+          },
+        ]);
+        setDownloading(false);
+        return;
+      }
+
+      // Fetch from server
+      const response = await api.get(`/submissions/download?submissionId=${submissionId}`, {
+        responseType: 'blob',
+      });
+
+      // Try to determine file type from content-type header
+      const contentType = response.headers['content-type'] || 'application/pdf';
+      let fileExtension = 'pdf';
+      if (contentType.includes('word')) fileExtension = 'docx';
+      if (contentType.includes('presentation')) fileExtension = 'pptx';
+      if (contentType.includes('sheet')) fileExtension = 'xlsx';
+      
+      // Update file path with correct extension
+      const actualFileUri = `${FileSystem.documentDirectory}submission_${submissionId}.${fileExtension}`;
+
+      // Handle web platform differently
+      if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(new Blob([response.data]));
+        window.open(url, '_blank');
+        URL.revokeObjectURL(url);
+        setDownloading(false);
+        return;
+      }
+
+      // For mobile platforms
+      let base64Data;
+      try {
+        base64Data = await blobToBase64(response.data);
+      } catch (error) {
+        console.error('Error converting blob to base64:', error);
+        throw new Error('Failed to process the downloaded file');
+      }
+
+      // Write file to filesystem
+      await FileSystem.writeAsStringAsync(actualFileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Verify file was created
+      const newFileInfo = await FileSystem.getInfoAsync(actualFileUri);
+      if (!newFileInfo.exists || newFileInfo.size === 0) {
+        throw new Error('File was not created properly');
+      }
+
+      // Try opening file directly 
+      openFile(actualFileUri, false);
+      
+    } catch (error) {
+      console.error('Download failed:', error);
+      Alert.alert(
+        'Error',
+        'Failed to download file. Please check your internet connection and try again.'
+      );
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const isRejected = submission?.status === 'Rejected';
 
   if (loading) {
@@ -223,19 +487,30 @@ const GradeSubmissionScreen = () => {
             <Text style={styles.label}>Submitted Document</Text>
             <View style={styles.docRow}>
               <FontAwesome5 name="file-pdf" size={16} color="white" style={styles.pdfIcon} />
-              <Text style={styles.docText}>submission_{submission.fileName}.pdf</Text>
-              <IconButton
-                icon="download"
-                size={18}
-                onPress={async () => {
-                  const url = `${api.defaults.baseURL}/submissions/download?submissionId=${submissionId}`;
-                  try {
-                    await WebBrowser.openBrowserAsync(url);
-                  } catch (error: any) {
-                    Alert.alert('Error', 'Failed to open file: ' + error.message);
-                  }
-                }}
-              />
+              <Text style={styles.docText}>submission_{submission.fileName || submissionId}.pdf</Text>
+              <View style={styles.docActions}>
+                <TouchableOpacity 
+                  style={[styles.iconButton, styles.viewButton, downloading && styles.iconButtonDisabled]} 
+                  onPress={handleDownloadSubmission}
+                  disabled={downloading}
+                >
+                  {downloading ? (
+                    <ActivityIndicator size="small" color="#1e3a8a" />
+                  ) : (
+                    <FontAwesome5 name="eye" size={16} color="#1e3a8a" />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.iconButton, downloading && styles.iconButtonDisabled]} 
+                  onPress={() => {
+                    const fileUri = FileSystem.documentDirectory + `submission_${submissionId}.pdf`;
+                    saveAndShareFile(fileUri);
+                  }}
+                  disabled={downloading}
+                >
+                  <FontAwesome5 name="download" size={16} color="#1e3a8a" />
+                </TouchableOpacity>
+              </View>
             </View>
           </Card.Content>
         </Card>
@@ -406,6 +681,25 @@ const styles = StyleSheet.create({
   docText: {
     flex: 1,
     fontSize: 14,
+  },
+  docActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    backgroundColor: '#fff',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 4,
+  },
+  viewButton: {
+    backgroundColor: '#e0f2fe',
+  },
+  iconButtonDisabled: {
+    opacity: 0.6,
   },
   gradeGrid: {
     flexDirection: 'row',

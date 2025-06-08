@@ -8,12 +8,17 @@ import {
   StyleSheet,
   ActivityIndicator,
   Alert,
+  Platform,
+  Linking,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/Ionicons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useNavigation } from '@react-navigation/native';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import * as WebBrowser from 'expo-web-browser';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as MediaLibrary from 'expo-media-library';
 import api from '@/service/api';
 import Header from '@/components/shared/Header';
 
@@ -40,6 +45,8 @@ export default function GradeSubmissionsScreen() {
   const [dueDate, setDueDate] = useState<string>('');
   const [assignmentTitle, setAssignmentTitle] = useState<string>('');
   const [gradedCount, setGradedCount] = useState<number>(0);
+  const [downloading, setDownloading] = useState(false);
+  const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
   const navigation = useNavigation();
 
   const fetchData = async () => {
@@ -102,121 +109,238 @@ export default function GradeSubmissionsScreen() {
     return unsubscribe;
   }, [assignmentId, navigation]);
 
-  const readBlobAsText = (blob: Blob): Promise<string> => {
+  // Helper function to convert blob to base64
+  const blobToBase64 = (blob: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        if (result.startsWith('data:')) {
-          const base64String = result.split(',')[1];
-          const text = atob(base64String);
-          resolve(text);
-        } else {
-          resolve(result);
-        }
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        // Remove the data URL prefix
+        const base64Data = base64String.split(',')[1];
+        resolve(base64Data);
       };
-      reader.onerror = (error) => reject(error);
+      reader.onerror = reject;
       reader.readAsDataURL(blob);
     });
   };
 
-  const handleDownloadReport = async () => {
+  // Helper function to get MIME type from file extension
+  const getMimeType = (uri: string): string => {
+    const extension = uri.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'csv':
+        return 'text/csv';
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'xls':
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      default:
+        return 'text/plain';
+    }
+  };
+
+  const openFile = async (fileUri: string, permanent: boolean = false) => {
     try {
-      // Fetch the CSV content as a Blob
-      const response = await api.get('/gradings/download', {
+      const mimeType = getMimeType(fileUri);
+      
+      // For Android, try Intent first (most direct method)
+      if (Platform.OS === 'android') {
+        try {
+          const contentUri = await FileSystem.getContentUriAsync(fileUri);
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: contentUri,
+            flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+            type: mimeType,
+          });
+          return;
+        } catch (error) {
+          console.log('Could not open with intent, trying alternatives:', error);
+        }
+      }
+      
+      // For iOS and web
+      if (Platform.OS === 'ios') {
+        try {
+          await Linking.openURL(fileUri);
+          return;
+        } catch (error) {
+          console.log('Could not open with Linking, trying WebBrowser:', error);
+        }
+        
+        try {
+          await WebBrowser.openBrowserAsync(fileUri);
+          return;
+        } catch (error) {
+          console.log('Could not open with WebBrowser, will try to share:', error);
+        }
+      }
+      
+      // Last resort: share the file
+      await shareFile(fileUri);
+      
+      // Clean up temporary files after a delay
+      if (!permanent) {
+        setTimeout(async () => {
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(fileUri);
+            if (fileInfo.exists) {
+              await FileSystem.deleteAsync(fileUri, { idempotent: true });
+              console.log('Temporary file cleaned up:', fileUri);
+            }
+          } catch (cleanupError) {
+            console.log('Failed to clean up temporary file:', cleanupError);
+          }
+        }, 300000); // Clean up after 5 minutes
+      }
+    } catch (error) {
+      console.error('Failed to open file:', error);
+      Alert.alert(
+        'Cannot Open File',
+        'Unable to open file directly. Would you like to save it to your device?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Save File', onPress: () => saveFile(fileUri) },
+        ]
+      );
+    }
+  };
+
+  const saveFile = async (fileUri: string) => {
+    try {
+      if (!permissionResponse?.granted) {
+        const permission = await requestPermission();
+        if (!permission.granted) {
+          Alert.alert('Permission Required', 'Storage permission is needed to save files.');
+          return;
+        }
+      }
+      
+      // Save to media library
+      const asset = await MediaLibrary.createAssetAsync(fileUri);
+      const album = await MediaLibrary.getAlbumAsync('Download');
+      if (album) {
+        await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+      } else {
+        await MediaLibrary.createAlbumAsync('Download', asset, false);
+      }
+      
+      Alert.alert('Success', 'File has been saved to your downloads folder');
+    } catch (error) {
+      console.error('Failed to save file:', error);
+      Alert.alert('Error', 'Failed to save file to downloads');
+      
+      // Try sharing anyway
+      shareFile(fileUri);
+    }
+  };
+
+  const shareFile = async (fileUri: string) => {
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: getMimeType(fileUri),
+          dialogTitle: 'Share File',
+          UTI: 'public.comma-separated-values-text',
+        });
+      } else {
+        Alert.alert('Error', 'Sharing is not available on this device');
+      }
+    } catch (error) {
+      console.error('Error sharing file:', error);
+      Alert.alert('Error', 'Failed to share file');
+    }
+  };
+
+  const handleDownloadReport = async () => {
+    if (!assignmentId) {
+      Alert.alert('Error', 'Assignment ID is missing.');
+      return;
+    }
+
+    try {
+      setDownloading(true);
+      
+      // Define file path
+      const fileName = `grading-report-${assignmentId}.csv`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      
+      // Check if file already exists
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (fileInfo.exists && fileInfo.size > 0) {
+        Alert.alert('File Ready', 'What would you like to do?', [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'View',
+            onPress: () => openFile(fileUri, false),
+          },
+          {
+            text: 'Save',
+            onPress: () => saveFile(fileUri),
+          },
+        ]);
+        setDownloading(false);
+        return;
+      }
+
+      // Fetch from server
+      const response = await api.get(`/gradings/download`, {
         params: { assignmentId },
         responseType: 'blob',
       });
 
-      // Log response details for debugging
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
-      console.log('Response data type:', response.data instanceof Blob ? 'Blob' : typeof response.data);
-      console.log('Response data size:', response.data.size);
-      console.log('Response data type (Blob):', response.data.type);
-
-      // Check if the response status is 200 OK
-      if (response.status !== 200) {
-        const errorBlob = response.data;
-        const errorText = await readBlobAsText(errorBlob);
-        let errorMessage = 'Failed to download the report.';
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorMessage = errorJson.message || errorMessage;
-        } catch (e) {
-          errorMessage = errorText || errorMessage;
-        }
-        throw new Error(errorMessage);
+      // Handle web platform differently
+      if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(new Blob([response.data]));
+        window.open(url, '_blank');
+        URL.revokeObjectURL(url);
+        setDownloading(false);
+        return;
       }
 
-      // Validate that response.data is a Blob
-      if (!(response.data instanceof Blob)) {
-        throw new Error('Response data is not a valid Blob.');
+      // For mobile platforms
+      let base64Data;
+      try {
+        base64Data = await blobToBase64(response.data);
+      } catch (error) {
+        console.error('Error converting blob to base64:', error);
+        throw new Error('Failed to process the downloaded file');
       }
 
-      // Check Blob size
-      if (response.data.size === 0) {
-        throw new Error('Received an empty Blob.');
-      }
-
-      // Removed strict type check since response.data.type may not reliably reflect Content-Type in React Native
-      // If needed, check response.headers['content-type'] instead
-      const contentType = response.headers['content-type']?.toLowerCase() || '';
-      if (contentType && !contentType.includes('text/csv') && !contentType.includes('application/octet-stream')) {
-        const errorText = await readBlobAsText(response.data);
-        let errorMessage = 'Invalid response type received.';
-        try {
-          const errorJson = JSON.parse(errorText);
-          errorMessage = errorJson.message || errorMessage;
-        } catch (e) {
-          errorMessage = errorText || errorMessage;
-        }
-        throw new Error(errorMessage);
-      }
-
-      // Convert Blob to base64
-      const reader = new FileReader();
-      reader.readAsDataURL(response.data);
-      const base64Data: string = await new Promise((resolve, reject) => {
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = (error) => reject(error);
-      });
-
-      // Extract the base64 string (remove the "data:text/csv;base64," prefix)
-      const base64String = base64Data.split(',')[1];
-
-      // Define the file path in the app's document directory
-      const fileName = `grading-report-${assignmentId}-${Date.now()}.csv`;
-      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-
-      // Write the file to the device's file system
-      await FileSystem.writeAsStringAsync(fileUri, base64String, {
+      // Write file to filesystem
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
         encoding: FileSystem.EncodingType.Base64,
       });
 
-      // Check if sharing is available (optional, for user interaction)
-      const isSharingAvailable = await Sharing.isAvailableAsync();
-      if (isSharingAvailable) {
-        // Open a sharing dialog to let the user save or share the file
-        await Sharing.shareAsync(fileUri, {
-          mimeType: 'text/csv',
-          dialogTitle: 'Save or Share Grading Report',
-          UTI: 'public.comma-separated-values-text',
-        });
-      } else {
-        // If sharing isn't available, inform the user where the file is saved
-        Alert.alert(
-          'File Saved',
-          `The grading report has been saved to your app's storage at: ${fileUri}`,
-          [{ text: 'OK' }]
-        );
+      // Verify file was created
+      const newFileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (!newFileInfo.exists || newFileInfo.size === 0) {
+        throw new Error('File was not created properly');
       }
-    } catch (err: any) {
-      console.error('Download error:', err.message || 'Failed to download report');
+
+      Alert.alert('Report Downloaded', 'What would you like to do?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'View',
+          onPress: () => openFile(fileUri, false),
+        },
+        {
+          text: 'Save',
+          onPress: () => saveFile(fileUri),
+        },
+      ]);
+    } catch (error) {
+      console.error('Download failed:', error);
       Alert.alert(
-        'Download Failed',
-        err.message || 'Could not download the report. Please try again later.'
+        'Error',
+        'Failed to download report. Please check your internet connection and try again.'
       );
+    } finally {
+      setDownloading(false);
     }
   };
 
@@ -267,11 +391,18 @@ export default function GradeSubmissionsScreen() {
         </View>
 
         <TouchableOpacity
-          style={styles.downloadButton}
+          style={[styles.downloadButton, downloading && styles.downloadingButton]}
           onPress={handleDownloadReport}
+          disabled={downloading}
         >
-          <Icon name="download-outline" size={16} color="#fff" />
-          <Text style={styles.downloadButtonText}>Download Report</Text>
+          {downloading ? (
+            <ActivityIndicator size="small" color="#fff" />
+          ) : (
+            <>
+              <Icon name="download-outline" size={16} color="#fff" />
+              <Text style={styles.downloadButtonText}>Download Report</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <TextInput
@@ -414,15 +545,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginLeft: 4,
   },
-  backLink: {
-    marginTop: 16,
-    marginBottom: 4,
-  },
-  backLinkText: {
-    color: '#1D4E89',
-    fontSize: 14,
-    fontWeight: '500',
-  },
   downloadButton: {
     backgroundColor: '#1D4E89',
     flexDirection: 'row',
@@ -433,10 +555,22 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 12,
   },
+  downloadingButton: {
+    backgroundColor: '#7a9cc7',
+  },
   downloadButtonText: {
     color: '#fff',
     fontSize: 14,
     fontWeight: '600',
     marginLeft: 8,
   },
+  backLink: {
+    marginTop: 16,
+    marginBottom: 4,
+  },
+  backLinkText: {
+    color: '#1D4E89',
+    fontSize: 14,
+    fontWeight: '500',
+  }
 });

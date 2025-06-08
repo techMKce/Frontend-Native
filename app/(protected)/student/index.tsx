@@ -127,6 +127,7 @@ export default function StudentDashboard() {
     if (!user?.id) return;
     try {
      
+      // Using correct endpoint format
       const enrolledResponse = await api.get(`/course-enrollment/by-student/${user.id}`);
       const enrolledCourseIds: string[] = enrolledResponse.data || [];
     

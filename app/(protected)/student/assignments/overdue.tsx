@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Linking, Platform, Alert } from 'react-native';
 import { COLORS, FONT, SIZES, SPACING, SHADOWS } from '@/constants/theme';
 import Header from '@/components/shared/Header';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { Calendar, Upload, X, Download, Eye } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
+import * as Sharing from 'expo-sharing';
+import * as IntentLauncher from 'expo-intent-launcher';
+import * as MediaLibrary from 'expo-media-library';
 import api from '@/service/api';
+import { useAuth } from '@/hooks/useAuth';
 
 // Define the Assignment interface inline
 interface Assignment {
@@ -31,25 +36,187 @@ interface Submission {
   submittedAt: string;
 }
 
-export default function SubmitAssignmentScreen() {
+export default function OverdueAssignmentScreen() {
+  const {profile} = useAuth();
   const [selectedFile, setSelectedFile] = useState<any>(null);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [submission, setSubmission] = useState<Submission | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isOverdue, setIsOverdue] = useState(false);
+  const [isOverdue, setIsOverdue] = useState(true);
   const [facultyFileName, setFacultyFileName] = useState<string>('Faculty Assignment File');
+  const [downloading, setDownloading] = useState<string | null>(null);
+  const [permissionResponse, requestPermission] = MediaLibrary.usePermissions();
 
   const { id } = useLocalSearchParams();
-  // Hardcoded student details
-  const studentName = 'John Doe';
-  const studentRollNumber = 'STU123';
+  const assignmentId = id as string;
+  const studentName = profile?.profile.name;
+  const studentRollNumber = profile?.profile.id;
+  const studentEmail = profile?.profile.email;
+  const studentDepartment = profile?.profile.department;
+  const studentSemester = profile?.profile?.semester as string | undefined;
+
+  // Helper function to convert blob to base64
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        // Remove the data URL prefix
+        const base64Data = base64String.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Helper function to get MIME type from file extension
+  const getMimeType = (uri: string): string => {
+    const extension = uri.split('.').pop()?.toLowerCase();
+    switch (extension) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'doc':
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'ppt':
+      case 'pptx':
+        return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+      case 'xls':
+      case 'xlsx':
+        return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      default:
+        return 'application/octet-stream';
+    }
+  };
+
+  const openFile = async (fileUri: string, permanent: boolean = false) => {
+    try {
+      const mimeType = getMimeType(fileUri);
+      
+      // For Android, try Intent first
+      if (Platform.OS === 'android') {
+        try {
+          const contentUri = await FileSystem.getContentUriAsync(fileUri);
+          await IntentLauncher.startActivityAsync('android.intent.action.VIEW', {
+            data: contentUri,
+            flags: 1, // FLAG_GRANT_READ_URI_PERMISSION
+            type: mimeType,
+          });
+          return;
+        } catch (error) {
+          console.log('Could not open with intent, trying alternatives:', error);
+        }
+      }
+      
+      // For iOS
+      if (Platform.OS === 'ios') {
+        try {
+          await Linking.openURL(fileUri);
+          return;
+        } catch (error) {
+          console.log('Could not open with Linking, trying WebBrowser:', error);
+        }
+        
+        if (mimeType === 'application/pdf') {
+          try {
+            await WebBrowser.openBrowserAsync(fileUri, {
+              presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+              showTitle: true,
+              toolbarColor: COLORS.primary,
+              controlsColor: '#fff',
+              enableBarCollapsing: true,
+            });
+            return;
+          } catch (error) {
+            console.log('Could not open with WebBrowser, will try to share:', error);
+          }
+        } else {
+          await shareFile(fileUri);
+          return;
+        }
+      }
+      
+      // Last resort: share the file
+      await shareFile(fileUri);
+      
+      if (!permanent) {
+        setTimeout(async () => {
+          try {
+            const fileInfo = await FileSystem.getInfoAsync(fileUri);
+            if (fileInfo.exists && !permanent) {
+              await FileSystem.deleteAsync(fileUri, { idempotent: true });
+              console.log('Temporary file cleaned up:', fileUri);
+            }
+          } catch (cleanupError) {
+            console.log('Failed to clean up temporary file:', cleanupError);
+          }
+        }, 300000); // 5 minutes
+      }
+    } catch (error) {
+      console.error('Failed to open file:', error);
+      Alert.alert(
+        'Cannot Open File',
+        'Unable to open file directly. Would you like to save it to your device?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Save & Share', onPress: () => saveAndShareFile(fileUri) },
+        ]
+      );
+    }
+  };
+
+  const saveAndShareFile = async (fileUri: string) => {
+    try {
+      if (!permissionResponse?.granted) {
+        const permission = await requestPermission();
+        if (!permission.granted) {
+          Alert.alert('Permission Required', 'Storage permission is needed to save files.');
+          return;
+        }
+      }
+      
+      const asset = await MediaLibrary.createAssetAsync(fileUri);
+      const album = await MediaLibrary.getAlbumAsync('Download');
+      if (album) {
+        await MediaLibrary.addAssetsToAlbumAsync([asset], album, false);
+      } else {
+        await MediaLibrary.createAlbumAsync('Download', asset, false);
+      }
+      
+      await shareFile(fileUri);
+      Alert.alert('Success', 'File has been saved to your downloads folder');
+    } catch (error) {
+      console.error('Failed to save file:', error);
+      Alert.alert('Error', 'Failed to save file to downloads');
+      shareFile(fileUri);
+    }
+  };
+
+  const shareFile = async (fileUri: string) => {
+    try {
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: getMimeType(fileUri),
+          dialogTitle: 'Share File',
+          UTI: 'public.item',
+        });
+      } else {
+        Alert.alert('Error', 'Sharing is not available on this device');
+      }
+    } catch (error) {
+      console.error('Error sharing file:', error);
+      Alert.alert('Error', 'Failed to share file');
+    }
+  };
 
   // Fetch assignment details, submission status, and faculty file name
   useEffect(() => {
     const fetchAssignmentAndSubmission = async () => {
-      if (!id) {
+      if (!assignmentId) {
         setError('Assignment ID is missing');
         setLoading(false);
         return;
@@ -58,42 +225,32 @@ export default function SubmitAssignmentScreen() {
       try {
         setLoading(true);
 
-        // Fetch assignment details using axios
-        const assignmentResponse = await api.get(`/assignments/id?assignmentId=${id}`);
+        // Fetch assignment details
+        const assignmentResponse = await api.get(`/assignments/id?assignmentId=${assignmentId}`);
         const fetchedAssignment = assignmentResponse.data.assignment;
         setAssignment(fetchedAssignment);
 
         // Check if the assignment is overdue
         const dueDate = new Date(fetchedAssignment.dueDate);
         const currentDate = new Date();
-        if (dueDate < currentDate) {
-          setIsOverdue(true);
-        }
+        setIsOverdue(dueDate < currentDate);
 
-        // Fetch the faculty file name if fileNo exists
-        if (fetchedAssignment.fileNo) {
+        // Fetch submission details for this student
+        if (studentRollNumber) {
           try {
-            const fileResponse = await api.get(
-              `/assignments/download?fileId=${fetchedAssignment.fileNo}`,
-              { responseType: 'blob' }
-            );
-            const fileName = fileResponse.headers['content-disposition']?.match(/filename="(.+)"/)?.[1] || 
-                            'Faculty Assignment File';
-            setFacultyFileName(fileName);
-          } catch (err) {
-            console.warn('Failed to fetch faculty file name, using default');
+            const submissionResponse = await api.get(`/submissions?assignmentId=${assignmentId}`);
+            const submissions = submissionResponse.data.submissions || [];
+            const studentSubmission = Array.isArray(submissions) ? 
+              submissions.find((sub: Submission) => sub.studentRollNumber === studentRollNumber) : null;
+            
+            if (studentSubmission) {
+              setSubmission(studentSubmission);
+              setIsSubmitted(true);
+            }
+          } catch (submissionError) {
+            console.error('Error fetching submission:', submissionError);
+            // Don't set global error, just log it
           }
-        }
-
-        // Fetch submission details for this assignment and student
-        const submissionResponse = await api.get(`/submissions?assignmentId=${id}`);
-        const studentSubmission = submissionResponse.data.submissions.find(
-          (sub: Submission) => sub.studentRollNumber === studentRollNumber
-        );
-
-        if (studentSubmission) {
-          setSubmission(studentSubmission);
-          setIsSubmitted(true);
         }
       } catch (err: any) {
         setError(err.response?.data?.message || err.message || 'An error occurred while fetching data');
@@ -103,199 +260,90 @@ export default function SubmitAssignmentScreen() {
     };
 
     fetchAssignmentAndSubmission();
-  }, [id]);
-
-  const handlePick = async () => {
-    try {
-      const res = await DocumentPicker.getDocumentAsync({ type: '*/*' });
-      if (!res.canceled) {
-        setSelectedFile(res.assets[0]);
-      }
-    } catch (e) {
-      console.error(e);
-      setError('Failed to pick file');
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!selectedFile || !id || isOverdue) return;
-
-    try {
-      const formData = new FormData();
-      formData.append('assignmentId', id as string);
-      formData.append('studentName', studentName);
-      formData.append('studentRollNumber', studentRollNumber);
-      formData.append('file', {
-        uri: selectedFile.uri,
-        name: selectedFile.name,
-        type: selectedFile.mimeType || 'application/octet-stream',
-      } as any);
-
-      const response = await api.post('/submissions', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      setIsSubmitted(true);
-      setSubmission({
-        id: response.data.submissionId,
-        assignmentId: id as string,
-        studentName,
-        studentRollNumber,
-        fileId: response.data.submissionId,
-        submittedAt: new Date().toISOString(),
-      });
-      setSelectedFile(null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'An error occurred while submitting the assignment');
-    }
-  };
-
-  const handleEditSubmission = async () => {
-    if (!selectedFile || !id || !submission?.id || isOverdue) return;
-
-    try {
-      const formData = new FormData();
-      formData.append('submissionId', submission.id);
-      formData.append('assignmentId', id as string);
-      formData.append('studentName', studentName);
-      formData.append('studentRollNumber', studentRollNumber);
-      formData.append('file', {
-        uri: selectedFile.uri,
-        name: selectedFile.name,
-        type: selectedFile.mimeType || 'application/octet-stream',
-      } as any);
-
-      const response = await api.put('/submissions', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      setIsSubmitted(true);
-      setSubmission({
-        ...submission,
-        fileId: response.data.submissionId,
-        submittedAt: new Date().toISOString(),
-      });
-      setSelectedFile(null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'An error occurred while editing the submission');
-    }
-  };
-
-  const handleUnsubmit = async () => {
-    if (!submission || !id || isOverdue) return;
-
-    try {
-      await api.delete('/submissions', {
-        data: {
-          assignmentId: id,
-          studentRollNumber,
-        },
-      });
-
-      setSelectedFile(null);
-      setIsSubmitted(false);
-      setSubmission(null);
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'An error occurred while unsubmitting the assignment');
-    }
-  };
+  }, [assignmentId, studentRollNumber]);
 
   const handleDownloadFacultyFile = async () => {
-    if (!assignment?.fileNo) return;
-
-    try {
-      const response = await api.get(
-        `/assignments/download?fileId=${assignment.fileNo}`,
-        { responseType: 'blob' }
-      );
-
-      const fileName = response.headers['content-disposition']?.match(/filename="(.+)"/)?.[1] || 'faculty_file.pdf';
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-
-      if (Platform.OS === 'web') {
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', fileName);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      } else {
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(fileUri, response.data, { encoding: FileSystem.EncodingType.Base64 });
-        Linking.openURL(fileUri);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'An error occurred while downloading the faculty file');
+    if (!assignment?.fileNo) {
+      setError('No faculty file available for download');
+      return;
     }
-  };
-
-  const handleViewFacultyFile = async () => {
-    if (!assignment?.fileNo) return;
 
     try {
-      const response = await api.get(
-        `/assignments/download?fileId=${assignment.fileNo}`,
-        { responseType: 'blob' }
-      );
+      setDownloading('faculty');
+      
+      // Default extension is pdf
+      const fileExtension = 'pdf';
+      const fileName = `faculty_file_${assignmentId}.${fileExtension}`;
+      const fileUri = `${FileSystem.documentDirectory}${fileName}`;
+      
+      // Check if file already exists
+      const fileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (fileInfo.exists && fileInfo.size > 0) {
+        Alert.alert('File Ready', 'What would you like to do?', [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'View',
+            onPress: () => openFile(fileUri, false),
+          },
+          {
+            text: 'Save & Share',
+            onPress: () => saveAndShareFile(fileUri),
+          },
+        ]);
+        setDownloading(null);
+        return;
+      }
 
-      const fileName = response.headers['content-disposition']?.match(/filename="(.+)"/)?.[1] || 'faculty_file.pdf';
-      const url = window.URL.createObjectURL(new Blob([response.data]));
+      // Fetch from server
+      const response = await api.get(`/assignments/download?assignmentId=${assignmentId}`, {
+        responseType: 'blob',
+      });
 
+      // Handle web platform
       if (Platform.OS === 'web') {
+        const url = URL.createObjectURL(new Blob([response.data]));
         window.open(url, '_blank');
-      } else {
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(fileUri, response.data, { encoding: FileSystem.EncodingType.Base64 });
-        const supported = await Linking.canOpenURL(fileUri);
-        if (supported) {
-          await Linking.openURL(fileUri);
-        } else {
-          setError('Cannot open file: No viewer available');
-        }
+        URL.revokeObjectURL(url);
+        setDownloading(null);
+        return;
       }
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'An error occurred while viewing the faculty file');
+
+      // For mobile platforms
+      let base64Data;
+      try {
+        base64Data = await blobToBase64(response.data);
+      } catch (error) {
+        console.error('Error converting blob to base64:', error);
+        throw new Error('Failed to process the downloaded file');
+      }
+
+      // Write file to filesystem
+      await FileSystem.writeAsStringAsync(fileUri, base64Data, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // Verify file was created
+      const newFileInfo = await FileSystem.getInfoAsync(fileUri);
+      if (!newFileInfo.exists || newFileInfo.size === 0) {
+        throw new Error('File was not created properly');
+      }
+
+      // Open file
+      openFile(fileUri, false);
+      setDownloading(null);
+    } catch (error) {
+      console.error('Download failed:', error);
+      Alert.alert('Error', 'Failed to download file. Please check your internet connection and try again.');
+      setDownloading(null);
     }
   };
 
-  const handleDownloadSubmittedFile = async () => {
-    if (!submission?.id) return;
+  // ...existing code for handleViewFacultyFile, handleDownloadSubmittedFile...
 
-    try {
-      const response = await api.get(
-        `/submissions/download?submissionId=${submission.id}`,
-        { responseType: 'blob' }
-      );
-
-      const fileName = response.headers['content-disposition']?.match(/filename="(.+)"/)?.[1] || 'submitted_file.pdf';
-      const url = window.URL.createObjectURL(new Blob([response.data]));
-
-      if (Platform.OS === 'web') {
-        const link = document.createElement('a');
-        link.href = url;
-        link.setAttribute('download', fileName);
-        document.body.appendChild(link);
-        link.click();
-        link.remove();
-      } else {
-        const fileUri = `${FileSystem.documentDirectory}${fileName}`;
-        await FileSystem.writeAsStringAsync(fileUri, response.data, { encoding: FileSystem.EncodingType.Base64 });
-        Linking.openURL(fileUri);
-      }
-    } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'An error occurred while downloading the submitted file');
-    }
-  };
-
-  // ... rest of the component code (styles and JSX) remains the same ...
   if (loading) {
     return (
       <View style={styles.container}>
-        <Header title="Submit Assignment" />
+        <Header title="Assignment Details" />
         <View style={styles.content}>
           <Text style={styles.loadingText}>Loading assignment details...</Text>
         </View>
@@ -306,7 +354,7 @@ export default function SubmitAssignmentScreen() {
   if (error || !assignment) {
     return (
       <View style={styles.container}>
-        <Header title="Submit Assignment" />
+        <Header title="Assignment Details" />
         <View style={styles.content}>
           <Text style={styles.errorText}>{error || 'Assignment not found'}</Text>
         </View>
@@ -316,7 +364,7 @@ export default function SubmitAssignmentScreen() {
 
   return (
     <View style={styles.container}>
-      <Header title="Submit Assignment" />
+      <Header title="Assignment Details" />
 
       <ScrollView style={styles.content}>
         {/* Assignment Details Card */}
@@ -325,8 +373,8 @@ export default function SubmitAssignmentScreen() {
           <Text style={styles.courseName}>{assignment.courseId}</Text>
 
           <View style={styles.dueDateContainer}>
-            <Calendar size={16} color={COLORS.gray} />
-            <Text style={styles.dueDate}>
+            <Calendar size={16} color={COLORS.error} />
+            <Text style={[styles.dueDate, { color: COLORS.error }]}>
               Due: {new Date(assignment.dueDate).toLocaleDateString()}
             </Text>
           </View>
@@ -337,14 +385,19 @@ export default function SubmitAssignmentScreen() {
             <View style={styles.facultyFileContainer}>
               <View style={styles.fileRow}>
                 <Text style={styles.metaInfo}>
-                  {assignment.fileNo}
+                  Assignment File
                 </Text>
                 <View style={styles.fileActions}>
-                  <TouchableOpacity style={styles.iconButton} onPress={handleViewFacultyFile}>
-                    <Eye size={18} color={COLORS.primary} />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.iconButton} onPress={handleDownloadFacultyFile}>
-                    <Download size={18} color={COLORS.primary} />
+                  <TouchableOpacity 
+                    style={[styles.iconButton, styles.viewButton, downloading === 'faculty' && styles.iconButtonDisabled]} 
+                    onPress={handleDownloadFacultyFile}
+                    disabled={downloading === 'faculty'}
+                  >
+                    {downloading === 'faculty' ? (
+                      <Eye size={18} color="#999" />
+                    ) : (
+                      <Eye size={18} color={COLORS.primary} />
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -352,84 +405,26 @@ export default function SubmitAssignmentScreen() {
           )}
         </View>
 
-        {/* Submission Card */}
+        {/* Overdue Notice Card */}
         <View style={styles.submissionCard}>
-          <Text style={styles.sectionTitle}>Submit Your Work</Text>
+          <Text style={styles.sectionTitle}>Assignment Overdue</Text>
 
-          {isOverdue && !isSubmitted && (
-            <View style={styles.overdueContainer}>
-              <X size={16} color={COLORS.error} />
-              <Text style={styles.overdueText}>Due Date Over</Text>
-            </View>
-          )}
+          <View style={styles.overdueContainer}>
+            <X size={20} color={COLORS.error} />
+            <Text style={styles.overdueText}>Due Date Has Passed</Text>
+          </View>
+          
+          <Text style={styles.overdueMessage}>
+            This assignment was due on {new Date(assignment.dueDate).toLocaleDateString()} and can no longer be submitted.
+            Please contact your instructor for any late submission requests.
+          </Text>
 
-          {isSubmitted && submission ? (
-            <>
-              <View style={styles.submittedFile}>
-                <View style={styles.fileInfo}>
-                  <Text style={styles.fileName}>Submitted File</Text>
-                  <Text style={styles.submissionDate}>
-                    Submitted: {new Date(submission.submittedAt).toLocaleString()}
-                  </Text>
-                </View>
-                <View style={styles.fileActions}>
-                  <TouchableOpacity style={styles.iconButton} onPress={handleDownloadSubmittedFile}>
-                    <Download size={18} color={COLORS.primary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <TouchableOpacity
-                style={styles.unsubmitButton}
-                onPress={handleUnsubmit}
-                disabled={isOverdue}
-              >
-                <Text style={styles.unsubmitButtonText}>Unsubmit</Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity 
-                style={styles.uploadButton} 
-                onPress={handlePick}
-                disabled={isOverdue}
-              >
-                <Upload size={24} color={isOverdue ? COLORS.gray : COLORS.primary} />
-                <Text style={[styles.uploadText, isOverdue && { color: COLORS.gray }]}>
-                  Upload your file
-                </Text>
-              </TouchableOpacity>
-
-              {selectedFile && (
-                <View style={styles.selectedFile}>
-                  <View style={styles.fileInfo}>
-                    <Text style={styles.fileName}>{selectedFile.name}</Text>
-                    <Text style={styles.fileSize}>
-                      {(selectedFile.size / 1024).toFixed(2)} KB
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[styles.iconButton, styles.deleteButton]}
-                    onPress={() => setSelectedFile(null)}
-                  >
-                    <X size={18} color={COLORS.error} />
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              <TouchableOpacity
-                style={[
-                  styles.submitButton,
-                  (!selectedFile || isSubmitted || isOverdue) && { opacity: 0.6 },
-                ]}
-                onPress={submission ? handleEditSubmission : handleSubmit}
-                disabled={!selectedFile || isSubmitted || isOverdue}
-              >
-                <Text style={styles.submitButtonText}>
-                  {submission ? 'Update Submission' : 'Submit Assignment'}
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.push('/student/assignments')}
+          >
+            <Text style={styles.backButtonText}>Go Back to Assignments</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={{ height: 100 }} />
@@ -438,16 +433,10 @@ export default function SubmitAssignmentScreen() {
   );
 }
 
+// Add styles for new elements
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: COLORS.background 
-  },
-  content: { 
-    flex: 1, 
-    padding: SPACING.md 
-  },
-
+  container: { flex: 1, backgroundColor: COLORS.background },
+  content: { flex: 1, padding: SPACING.md },
   detailsCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -494,8 +483,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: COLORS.background,
     borderRadius: 8,
-    padding: SPACING.sm,
-    flexWrap: 'wrap',
+    padding: SPACING.md,
   },
   metaInfo: {
     fontFamily: FONT.medium,
@@ -506,13 +494,8 @@ const styles = StyleSheet.create({
   },
   fileActions: {
     flexDirection: 'row',
-    gap: SPACING.xs,
-    minWidth: 80,
+    gap: SPACING.sm,
   },
-  iconButton: {
-    padding: SPACING.sm,
-  },
-
   submissionCard: {
     backgroundColor: COLORS.white,
     borderRadius: 12,
@@ -527,106 +510,53 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   overdueContainer: {
-    backgroundColor: `${COLORS.error}20`,
-    borderRadius: 8,
-    padding: SPACING.md,
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: SPACING.md,
+    backgroundColor: `${COLORS.error}15`,
+    padding: SPACING.md,
+    borderRadius: 8,
   },
   overdueText: {
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
     color: COLORS.error,
     marginLeft: SPACING.sm,
-    marginRight: SPACING.xs,
   },
-  overdueSubText: {
+  overdueMessage: {
     fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
-    color: COLORS.darkGray,
-    flex: 1,
-  },
-  uploadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.primary,
-    borderStyle: 'dashed',
-    borderRadius: 8,
-    padding: SPACING.lg,
-    marginBottom: SPACING.md,
-  },
-  uploadText: {
-    fontFamily: FONT.medium,
-    fontSize: SIZES.md,
-    color: COLORS.primary,
-    marginLeft: SPACING.sm,
-  },
-  selectedFile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.background,
-    borderRadius: 8,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  submittedFile: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: COLORS.gray,
-    borderRadius: 8,
-    padding: SPACING.md,
-    marginBottom: SPACING.md,
-  },
-  fileInfo: {
-    flex: 1,
-  },
-  fileName: {
-    fontFamily: FONT.medium,
     fontSize: SIZES.md,
     color: COLORS.darkGray,
-    marginBottom: 2,
+    marginBottom: SPACING.lg,
+    lineHeight: 22,
   },
-  fileSize: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
-    color: COLORS.gray,
-  },
-  submissionDate: {
-    fontFamily: FONT.regular,
-    fontSize: SIZES.sm,
-    color: COLORS.gray,
-  },
-  deleteButton: {
-    backgroundColor: `${COLORS.error}10`,
-    borderRadius: 4,
-  },
-  submitButton: {
+  backButton: {
     backgroundColor: COLORS.primary,
     borderRadius: 8,
     padding: SPACING.md,
     alignItems: 'center',
   },
-  submitButtonText: {
+  backButtonText: {
     fontFamily: FONT.semiBold,
     fontSize: SIZES.md,
     color: COLORS.white,
   },
-  unsubmitButton: {
-    backgroundColor: COLORS.error,
-    borderRadius: 8,
-    padding: SPACING.md,
+  iconButton: {
+    padding: SPACING.xs,
+    borderRadius: 20,
+    backgroundColor: `${COLORS.primary}15`,
+    width: 36,
+    height: 36,
     alignItems: 'center',
-    marginTop: SPACING.sm,
+    justifyContent: 'center',
+    marginLeft: 8,
   },
-  unsubmitButtonText: {
-    fontFamily: FONT.semiBold,
-    fontSize: SIZES.md,
-    color: COLORS.white,
+  viewButton: {
+    backgroundColor: `${COLORS.success}15`,
+  },
+  iconButtonDisabled: {
+    opacity: 0.6,
+    backgroundColor: `${COLORS.gray}15`,
   },
   loadingText: {
     fontFamily: FONT.regular,
@@ -641,5 +571,18 @@ const styles = StyleSheet.create({
     color: COLORS.error,
     textAlign: 'center',
     marginTop: SPACING.lg,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: COLORS.background,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  progressIndicator: {
+    width: '30%',
+    height: '100%',
+    backgroundColor: COLORS.primary,
+    borderRadius: 2,
   },
 });

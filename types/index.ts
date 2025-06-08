@@ -25,5 +25,6 @@ export type Profile = {
     email: string;
     department: string;
     year:string;
+    semester: number;
     role: UserRole;
 };
