@@ -148,32 +148,44 @@ export default function ResubmitAssignmentScreen() {
     if (!selectedFile || !assignmentId || !submission?.id) return;
 
     try {
+      // Show loading indicator
+      Alert.alert('Resubmitting', 'Please wait while your assignment is being resubmitted...');
+      
       const formData = new FormData();
-      formData.append('submissionId', submission.id);
       formData.append('assignmentId', assignmentId);
-      formData.append('studentName', studentName || '');
-      formData.append('studentRollNumber', studentRollNumber || '');
+      formData.append('studentName', studentName ?? '');
+      formData.append('studentEmail', studentEmail ?? '');
+      formData.append('studentRollNumber', studentRollNumber ?? '');
+      formData.append('studentDepartment', studentDepartment ?? '');
+      formData.append('studentSemester', studentSemester ?? '');
       formData.append('file', {
         uri: selectedFile.uri,
         name: selectedFile.name,
         type: selectedFile.mimeType || 'application/octet-stream',
       } as any);
 
-      const response = await api.put('/submissions', formData, {
+      const response = await api.post('/submissions', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
       });
 
       setIsResubmitted(true);
-      setSubmission({
-        ...submission,
-        fileId: response.data.submissionId,
-        submittedAt: new Date().toISOString(),
+      setSubmission(prev => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          fileId: response.data.submissionId || prev.fileId,
+          submittedAt: new Date().toISOString(),
+        };
       });
       setSelectedFile(null);
+      
+      Alert.alert('Success', 'Your assignment has been successfully resubmitted!');
     } catch (err: any) {
+      console.error('Resubmit error:', err);
       setError(err.response?.data?.message || err.message || 'An error occurred while resubmitting the assignment');
+      Alert.alert('Error', 'Failed to resubmit assignment. Please try again.');
     }
   };
 
@@ -396,6 +408,9 @@ export default function ResubmitAssignmentScreen() {
         return;
       }
 
+      // Show downloading indicator
+      Alert.alert('Downloading', 'Please wait while the file is being downloaded...');
+
       // Fetch from server
       const response = await api.get(`/assignments/download?assignmentId=${assignmentId}`, {
         responseType: 'blob',
@@ -453,25 +468,32 @@ export default function ResubmitAssignmentScreen() {
     try {
       setDownloading('submission');
       
+      // Show downloading indicator
+      Alert.alert('Downloading', 'Please wait while the file is being downloaded...');
+
       // Default extension is pdf, but we'll try to extract it if possible
       const fileName = `submission_${submission.id}.pdf`;
       const fileUri = `${FileSystem.documentDirectory}${fileName}`;
       
-      // Check if file already exists
-      const fileInfo = await FileSystem.getInfoAsync(fileUri);
-      if (fileInfo.exists && fileInfo.size > 0) {
-        // File exists, ask user what to do
-        Alert.alert('File Ready', 'What would you like to do?', [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'View',
-            onPress: () => openFile(fileUri, false),
-          },
-          {
-            text: 'Save & Share',
-            onPress: () => saveAndShareFile(fileUri),
-          },
-        ]);
+      // Check if file already exists in any format
+      const possibleExtensions = ['pdf', 'docx', 'pptx', 'xlsx'];
+      let fileExists = false;
+      let existingFilePath = '';
+      
+      for (const ext of possibleExtensions) {
+        const filePath = `${FileSystem.documentDirectory}submission_${submission.id}.${ext}`;
+        const fileInfo = await FileSystem.getInfoAsync(filePath);
+        
+        if (fileInfo.exists && fileInfo.size > 0) {
+          fileExists = true;
+          existingFilePath = filePath;
+          break;
+        }
+      }
+      
+      if (fileExists) {
+        // File exists, open it directly
+        openFile(existingFilePath, false);
         setDownloading(null);
         return;
       }
@@ -645,7 +667,7 @@ export default function ResubmitAssignmentScreen() {
             <View style={styles.fileInfo}>
               <Text style={styles.fileName}>Previously Submitted File</Text>
               <Text style={styles.submissionDate}>
-                Submitted: {new Date(submission.submittedAt).toLocaleString()}
+                Submitted: {submission?.submittedAt ? new Date(submission.submittedAt).toLocaleString() : 'N/A'}
               </Text>
             </View>
             <View style={styles.fileActions}>
@@ -662,7 +684,40 @@ export default function ResubmitAssignmentScreen() {
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[styles.iconButton, downloading === 'submission' && styles.iconButtonDisabled]} 
-                onPress={() => saveAndShareFile(FileSystem.documentDirectory + `submission_${submission.id}.pdf`)}
+                onPress={async () => {
+                  if (!submission?.id) {
+                    Alert.alert('Error', 'No submission file found');
+                    return;
+                  }
+                  
+                  try {
+                    // Check if file exists in filesystem before attempting to share
+                    const possibleExtensions = ['pdf', 'docx', 'pptx', 'xlsx'];
+                    let fileExists = false;
+                    let existingFilePath = '';
+                    
+                    for (const ext of possibleExtensions) {
+                      const filePath = `${FileSystem.documentDirectory}submission_${submission.id}.${ext}`;
+                      const fileInfo = await FileSystem.getInfoAsync(filePath);
+                      
+                      if (fileInfo.exists && fileInfo.size > 0) {
+                        fileExists = true;
+                        existingFilePath = filePath;
+                        break;
+                      }
+                    }
+                    
+                    if (fileExists) {
+                      saveAndShareFile(existingFilePath);
+                    } else {
+                      // If file doesn't exist, download it first
+                      handleDownloadSubmittedFile();
+                    }
+                  } catch (error) {
+                    console.error('Error checking file:', error);
+                    Alert.alert('Error', 'Failed to access file. Try downloading first.');
+                  }
+                }}
                 disabled={downloading === 'submission'}
               >
                 {downloading === 'submission' ? (
@@ -704,13 +759,13 @@ export default function ResubmitAssignmentScreen() {
           <TouchableOpacity
             style={[
               styles.submitButton,
-              (!selectedFile || isResubmitted) && { opacity: 0.6 },
+              (!selectedFile) && { opacity: 0.6 },
             ]}
             onPress={handleResubmit}
-            disabled={!selectedFile || isResubmitted}
+            disabled={!selectedFile}
           >
             <Text style={styles.submitButtonText}>
-              {isResubmitted ? 'Resubmitted' : 'Resubmit Assignment'}
+              Resubmit Assignment
             </Text>
           </TouchableOpacity>
 
